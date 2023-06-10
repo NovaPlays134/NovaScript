@@ -1,0 +1,740 @@
+require("NovaScript.NovaScript_natives")
+local tables = require("NovaScript.tables")
+local T = require("NovaScript.NovaS_translations")
+local func = require("NovaScript.functions")
+
+-----------------------------------------------
+--------------------TABLES---------------------
+-----------------------------------------------
+local relationships = {
+    [0] = "Companion",
+    [1] = "Respect",
+    [2] = "Like",
+    [3] = "Neutral",
+    [4] = "Dislike",
+    [5] = "Hate",
+    [255] = "Pedestrians",
+}
+
+local languages = {
+    [0] = T"English",
+    [1] = T"French",
+    [2] = T"German",
+    [3] = T"Italian",
+    [4] = T"Spanish",
+    [5] = T"Brazilian",
+    [6] = T"Polish",
+    [7] = T"Russian",
+    [8] = T"Korean",
+    [9] = T"Chinese",
+    [10] = T"Japanese",
+    [11] = T"Mexican",
+    [12] = T"Chinese",
+}
+
+local seat_names = {
+    [-1] = T"Driver",
+    [0] = T"Front Right",
+    [1] = T"Back Left",
+    [2] = T"Back Right",
+    [3] = T"Further Back Left",
+    [4] = T"Further Back Right",
+}
+
+local effects = {
+    "scr_mich4_firework_trailburst",
+    "scr_indep_firework_air_burst",
+    "scr_indep_firework_starburst",
+    "scr_indep_firework_trailburst_spawn",
+    "scr_firework_indep_burst_rwb",
+    "scr_firework_indep_spiral_burst_rwb",
+    "scr_firework_indep_ring_burst_rwb",
+    "scr_xmas_firework_burst_fizzle",
+    "scr_firework_indep_repeat_burst_rwb",
+    "scr_firework_xmas_ring_burst_rgw",
+    "scr_firework_xmas_repeat_burst_rgw",
+    "scr_firework_xmas_spiral_burst_rgw",
+}
+local assets = {
+    "scr_rcpaparazzo1",
+    "proj_indep_firework",
+    "scr_indep_fireworks",
+    "scr_indep_fireworks",
+    "proj_indep_firework_v2",
+    "proj_indep_firework_v2",
+    "proj_indep_firework_v2",
+    "proj_indep_firework_v2",
+    "proj_indep_firework_v2",
+    "proj_xmas_firework",
+    "proj_xmas_firework",
+    "proj_xmas_firework",
+}
+
+-----------------------------------------------
+-------------------FUNCTIONS-------------------
+-----------------------------------------------
+local function draw_rect_with_text(x, y, text_amound, width, colour)
+    local total_text_height = 0
+    local one_text_height = 0.01874 + 0.007
+    
+    for i = 1, text_amound do
+        total_text_height = total_text_height + one_text_height
+    end
+
+    local draw_rect = directx.draw_rect(x - 0.0045, y - 0.0045, width, total_text_height, colour)
+    
+    return draw_rect
+end
+
+local function draw_info_text(text, infotext, posX, posY, distance, size1, size2, bool)
+    local draw_text = directx.draw_text(posX, posY, text, ALIGN_TOP_LEFT, size1, {r = 1, g = 1, b = 1, a = 1.0}, true)
+
+    local first_text_width, first_text_height = directx.get_text_size(text, size1)
+    
+    local posX2, alignment
+    local posY2 = posY + (first_text_height/1.9)
+    if bool then
+        posX2 = posX - (-distance/1000)
+        alignment = ALIGN_CENTRE_RIGHT
+    else
+        posX2 = posX + first_text_width + (distance/1000)
+        alignment = ALIGN_CENTRE_LEFT
+    end
+    
+    local draw_infotext = directx.draw_text(posX2, posY2, infotext, alignment, size2, {r = 160/255, g = 160/255, b = 160/255, a = 1.0}, true)
+    
+    return draw_text, draw_infotext
+end
+
+local function dec_to_ipv4(ip)
+	return string.format(
+		"%i.%i.%i.%i", 
+		ip >> 24 & 0xFF, 
+		ip >> 16 & 0xFF, 
+		ip >> 8  & 0xFF, 
+		ip 		 & 0xFF
+	)
+end
+
+local all_weapons = {}
+local temp_weapons = util.get_weapons()
+for a,b in pairs(temp_weapons) do
+    all_weapons[#all_weapons + 1] = {hash = b['hash'], label_key = b['label_key']}
+end
+
+local function get_weapon_name_from_hash(hash) 
+    for k,v in pairs(all_weapons) do 
+        if v.hash == hash then 
+            return util.get_label_text(v.label_key)
+        end
+    end
+    return T"Unarmed"
+end
+
+local function bool(bool)
+    if bool then
+        return T"Yes"
+    else
+        return T"No"
+    end
+end
+
+local function check(info)
+    if info == nil or info == "NULL" or info == 0 or info == " " then
+        return T"None"
+    else
+        return info
+    end
+end
+
+local function queuecheck(info)
+    if info == nil or info == "NULL" or info == " " then
+        return 0
+    else
+        return "#" .. info
+    end
+end
+
+local function org(org_type)
+    if org_type == -1 then
+        return T"Isn't in any"
+    elseif org_type == 0 then
+        return "CEO"
+    else
+        return "MC"
+    end
+end
+
+local function round(num, dp)
+    local mult = 10^(dp or 0)
+    return math.floor(num * mult + 0.5) / mult
+end
+
+local function format_money(money)
+    if money >= 1000 and money < 999950 then
+        return round(money / 1000, 1) .. "K"
+    elseif money >= 999950 and money < 999999950 then
+        return round(money / 1000000, 1) .. "M"
+    elseif money >= 999999950 then
+        return round(money / 1000000000, 1) .. "B"
+    else return money
+    end
+end
+
+-----------------------------------------------
+---------------------LISTS---------------------
+-----------------------------------------------
+local root = menu.my_root()
+local world_main = root:list(T"World")
+local all_vehicles_list = world_main:list(T"All Vehicles")
+local firework_list = world_main:list(T"Firework")
+local bouncy_water_list = world_main:list(T"Bouncy Water")
+local train_controls_list = world_main:list(T"Train Controls")
+
+-----------------------------------------------
+--------------------OPTIONS--------------------
+-----------------------------------------------
+------------------------
+--EXPLODE ALL VEHICLES--
+------------------------
+all_vehicles_list:toggle_loop(T"Explode All Vehicles", {}, "", function()
+    local vehicles = entities.get_all_vehicles_as_pointers()
+    local user_vehicle = get_vehicle_ped_is_in(players.user_ped(), true)
+    for vehicles as vehicle do
+        local vehicle_handle = entities.pointer_to_handle(vehicle)
+        if vehicle_handle != user_vehicle then
+            local vehicle_pos = get_entity_coords(vehicle_handle, true)
+            add_explosion(vehicle_pos.x, vehicle_pos.y, vehicle_pos.z, 1, 1.0, true, false, 0.0, false)
+        end
+    end
+    util.yield(2000)
+end)
+
+-----------------------
+--FREEZE ALL VEHICLES--
+-----------------------
+all_vehicles_list:toggle_loop(T"Freeze All Vehicles", {}, "", function()
+    local vehicles = entities.get_all_vehicles_as_pointers()
+    local user_vehicle = get_vehicle_ped_is_in(players.user_ped(), true)
+    for vehicles as vehicle do
+        local vehicle_handle = entities.pointer_to_handle(vehicle)
+        if vehicle_handle != user_vehicle then
+            freeze_entity_position(vehicle_handle, true)
+        end
+    end
+end, function()
+    local vehicles = entities.get_all_vehicles_as_pointers()
+    for vehicles as vehicle do
+        local vehicle_handle = entities.pointer_to_handle(vehicle)
+        freeze_entity_position(vehicle_handle, false)
+    end
+end)
+
+-------------------------------------
+--TURN OFF GRAVITY FOR ALL VEHICLES--
+-------------------------------------
+all_vehicles_list:toggle_loop(T"Turn Off Gravity For All Vehicles", {}, "", function()
+    local vehicles = entities.get_all_vehicles_as_pointers()
+    local user_vehicle = get_vehicle_ped_is_in(players.user_ped(), true)
+    for vehicles as vehicle do
+        local vehicle_handle = entities.pointer_to_handle(vehicle)
+        if vehicle_handle != user_vehicle then
+            set_vehicle_gravity(vehicle_handle, false)
+        end
+    end
+end, function()
+    local vehicles = entities.get_all_vehicles_as_pointers()
+    for vehicles as vehicle do
+        local vehicle_handle = entities.pointer_to_handle(vehicle)
+        set_vehicle_gravity(vehicle_handle, true)
+    end
+end)
+
+--------------------
+--JUMPING VEHICLES--
+--------------------
+all_vehicles_list:toggle_loop(T"Jumping Vehicles", {}, "", function()
+    local vehicles = entities.get_all_vehicles_as_pointers()
+    local user_vehicle = get_vehicle_ped_is_in(players.user_ped(), true)
+    for vehicles as vehicle do
+        local vehicle_handle = entities.pointer_to_handle(vehicle)
+        if vehicle_handle != user_vehicle then
+            apply_force_to_entity(vehicle_handle, 3, 0, 0, 10, 0.0, 0.0, 0.0, 0, true, false, true, false, true)
+        end
+    end
+    util.yield(2000)
+end)
+
+-----------------
+--VEHICLE CHAOS--
+-----------------
+all_vehicles_list:toggle_loop(T"Vehicle Chaos", {}, "", function()
+    local vehicles = entities.get_all_vehicles_as_pointers()
+    local user_vehicle = get_vehicle_ped_is_in(players.user_ped(), true)
+    for vehicles as vehicle do
+        local vehicle_handle = entities.pointer_to_handle(vehicle)
+        if vehicle_handle != user_vehicle then
+            apply_force_to_entity(vehicle_handle, 3, math.random(20, 100), math.random(20, 100), math.random(20, 100), math.random(10, 100), math.random(10, 100), math.random(10, 100), 0, true, false, true, false, true)
+        end
+    end
+    util.yield(2000)
+end)
+
+-----------------------------------
+--TURN ALL VEHICLES ON THEIR BACK--
+-----------------------------------
+all_vehicles_list:toggle_loop(T"Turn all Vehicles on Their back", {}, "", function()
+    local vehicles = entities.get_all_vehicles_as_pointers()
+    local user_vehicle = get_vehicle_ped_is_in(players.user_ped(), true)
+    for vehicles as vehicle do
+        local vehicle_handle = entities.pointer_to_handle(vehicle)
+        if vehicle_handle != user_vehicle then
+            set_entity_rotation(vehicle_handle, 0, 180, 0, 1, true)
+        end
+    end
+end, function()
+    local vehicles = entities.get_all_vehicles_as_pointers()
+    local user_vehicle = get_vehicle_ped_is_in(players.user_ped(), true)
+    for vehicles as vehicle do
+        local vehicle_handle = entities.pointer_to_handle(vehicle)
+        if vehicle_handle != user_vehicle then
+            set_entity_rotation(vehicle_handle, 0, 0, 0, 1, true)
+        end
+    end
+end)
+
+------------------------
+--DELETE ALL VEHICLES--
+------------------------
+all_vehicles_list:toggle_loop(T"Delete All Vehicles", {}, "", function()
+    local my_pos = players.get_position(players.user())
+    clear_area_of_vehicles(my_pos.x, my_pos.y, my_pos.z, 10000, false, false, false, false, false, false, false)
+    util.yield(1000)
+end)
+
+--------
+--KIND--
+--------
+local effect_name_kind = "scr_mich4_firework_trailburst"
+local asset_name_kind = "scr_rcpaparazzo1"
+firework_list:slider(T"Kind", {"Nfireworkkind"}, "", 1, 12, 1, 1, function(count)
+    effect_name_kind = effects[count]
+    asset_name_kind = assets[count]
+end)
+
+------------
+--FIREWORK--
+------------
+local firework;firework = firework_list:toggle(T"Firework", {}, "", function(on)
+    if on then
+        local user_pos = get_offset_from_entity_in_world_coords(players.user_ped(), 0.0, 5.0, 0.0)
+        local weap = util.joaat('weapon_firework')
+        request_weapon_asset(weap)
+        while firework.value do
+            shoot_single_bullet_between_coords(user_pos.x, user_pos.y, user_pos.z, user_pos.x, user_pos.y, user_pos.z + 1, 200, 0, weap, 0, false, false, 1000)
+            util.yield(250)
+            func.use_fx_asset(asset_name_kind)
+            local fx = start_particle_fx_looped_at_coord(effect_name_kind, user_pos.x, user_pos.y, user_pos.z+math.random(10, 40), 0.0, 0.0, 0.0, 1.0, false, false, false, false)
+            util.yield(1000)
+            stop_particle_fx_looped(fx, false)
+        end
+    end
+end)
+
+firework_list:divider("")
+
+--------
+--TYPE--
+--------
+local firework_names = {T"Fountain", T"Shotburst", T"Trailburst"}
+local firework_type = "ind_prop_firework_04"
+local effect_name = "scr_indep_firework_fountain"
+firework_list:textslider(T"Type", {}, "", firework_names, function(index, name)
+    switch index do
+        case 1:
+            firework_type = "ind_prop_firework_04"
+            effect_name = "scr_indep_firework_fountain"
+            break
+        case 2:
+		    firework_type = "ind_prop_firework_02"
+            effect_name = "scr_indep_firework_shotburst"
+            break
+        case 3:
+		    firework_type = "ind_prop_firework_03"
+            effect_name = "scr_indep_firework_trailburst"
+            break
+    end
+end)
+
+---------
+--TIMER--
+---------
+local firework_timer = 10
+firework_list:slider(T"Timer", {"Nfireworktimer"}, "", 1, 20, 10, 1, function(count)
+	firework_timer = count
+end)
+
+---------
+--PLACE--
+---------
+local placed_fireworks = {}
+firework_list:action(T"Place", {}, "", function()
+    local anim_dict = 'anim@mp_fireworks'
+    local anim_name = 'place_firework_3_box'
+    func.load_anim_dict(anim_dict)
+    local position = get_offset_from_entity_in_world_coords(players.user_ped(), 0.0, 0.52, 0.0)
+    freeze_entity_position(players.user_ped(), true)
+    task_play_anim(players.user_ped(), anim_dict, anim_name, 8.0, 8.0, -1, 0, 0.0, false, false, false)
+    util.yield(1500)
+    local firework = entities.create_object(util.joaat(firework_type), positione)
+    place_object_on_ground_properly(firework)
+    freeze_entity_position(players.user_ped(), false)
+    util.yield(1000)
+    freeze_entity_position(firework, true)
+    table.insert(placed_fireworks, {object = firework, effect = effect_name})
+end)
+
+--------
+--PLAY--
+--------
+firework_list:action(T"Play", {}, "", function()
+    local ptfx_asset = "scr_indep_fireworks"
+    local time = util.current_time_millis() + (firework_timer * 1000)
+    while time >= util.current_time_millis() do
+        for j, firework in placed_fireworks do
+            func.use_fx_asset(ptfx_asset)
+            start_networked_particle_fx_non_looped_on_entity(firework.effect, firework.object, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, false, false, false)
+        end
+        util.yield(150)
+    end
+    for i, firework in placed_fireworks do 
+        entities.delete_by_handle(firework.object)
+        table.remove(placed_fireworks, i)
+    end
+end)
+
+-----------------
+--BOUNCE HEIGHT--
+-----------------
+local bounce_height = 15
+bouncy_water_list:slider(T"Bounce Height", {"Nbounceheight"}, "", 1, 100, 15, 1, function(count)
+	bounce_height = count
+end)
+
+----------------
+--BOUNCY WATER--
+----------------
+bouncy_water_list:toggle_loop(T"Bouncy Water", {}, "", function()
+	if is_ped_in_any_vehicle(players.user_ped(), false) then
+		if is_entity_in_water(entities.get_user_vehicle_as_handle(false)) then
+			local vel = v3.new(get_entity_velocity(entities.get_user_vehicle_as_handle(false)))
+			set_entity_velocity(entities.get_user_vehicle_as_handle(false), vel.x, vel.y, bounce_height)
+		end
+	else
+		if is_entity_in_water(players.user_ped()) then
+			local vel = v3.new(get_entity_velocity(entities.get_user_vehicle_as_handle(false)))
+			set_entity_velocity(players.user_ped(), vel.x, vel.y, bounce_height)
+		end
+	end
+end)
+
+-----------------------
+--ENTER NEAREST TRAIN--
+-----------------------
+train_controls_list:action(T"Enter Nearest Train", {}, "", function()
+    local vehicles = entities.get_all_vehicles_as_pointers()
+    local user_vehicle = get_vehicle_ped_is_in(players.user_ped(), true)
+    local train_found = false
+    if not is_ped_in_any_train(players.user_ped()) then
+        for vehicles as vehicle do
+            local vehicle_handle = entities.pointer_to_handle(vehicle)
+            if get_entity_model(vehicle_handle) == 1030400667 or get_entity_model(vehicle_handle) == 868868440 then
+                local driver_ped = get_ped_in_vehicle_seat(vehicle_handle, -1, true)
+                if does_entity_exist(driver_ped) and is_ped_a_player(driver_ped) then
+                    entities.delete_by_handle(driver_ped)
+                end
+                set_ped_into_vehicle(players.user_ped(), vehicle_handle, -1)
+                train_found = true
+            end
+        end
+        if not train_found then
+            util.toast(T"No train found.")
+        end
+    end
+end)
+
+---------------------
+--TRAIN KEY CONTROL--
+---------------------
+train_controls_list:toggle_loop(T"Train Key Control", {}, "", function()
+	if is_ped_in_any_train(players.user_ped()) then
+        local train = entities.get_user_vehicle_as_handle(false)
+        local train_max_speed = get_vehicle_estimated_max_speed(train)
+		local control_pressed = false
+		if is_disabled_control_pressed(2, 32) then
+			train_max_speed = train_max_speed + 10
+			control_pressed = true
+		end
+		if is_disabled_control_pressed(2, 33) then
+			train_max_speed = train_max_speed - 20
+			control_pressed = true
+		end
+		if control_pressed then
+			set_train_speed(train, train_max_speed)
+			set_train_cruise_speed(train, train_max_speed)
+		end
+	end
+end)
+
+--------------
+--HALT TRAIN--
+--------------
+train_controls_list:toggle_loop(T"Halt Train", {}, "", function()
+	if is_ped_in_any_train(players.user_ped()) then
+        local train = entities.get_user_vehicle_as_handle(false)
+		set_train_speed(train, 0.0)
+		set_train_cruise_speed(train, 0.0)
+	end
+end, function()
+    local train = entities.get_user_vehicle_as_handle(false)
+    local train_max_speed = get_vehicle_estimated_max_speed(train)
+	set_train_speed(train, train_max_speed)
+	set_train_cruise_speed(train, train_max_speed)
+end)
+
+---------------------
+--FORCE LEAVE TRAIN--
+---------------------
+train_controls_list:action(T"Force Leave Train", {}, "", function()
+	if is_ped_in_any_train(players.user_ped()) then
+		clear_ped_tasks_immediately(players.user_ped())
+	end
+end)
+
+----------
+--DERAIL--
+----------
+train_controls_list:toggle_loop(T"Derail", {}, "", function()
+	if is_ped_in_any_train(players.user_ped()) then
+        local train = entities.get_user_vehicle_as_handle(false)
+		set_render_train_as_derailed(train, true)
+		set_train_speed(train, 0.0)
+		set_train_cruise_speed(train, 0.0)
+	end
+end, function()
+    local train = entities.get_user_vehicle_as_handle(false)
+    local train_max_speed = get_vehicle_estimated_max_speed(train)
+	set_render_train_as_derailed(train, false)
+	set_train_speed(train, train_max_speed)
+	set_train_cruise_speed(train, train_max_speed)
+end)
+
+-------------------
+--AIM INFORMATION--
+-------------------
+world_main:toggle_loop(T"Aim Information", {}, "", function()
+    if is_player_free_aiming(players.user()) then
+        local entity = func.get_entity_player_is_aiming_at(players.user(), true)
+
+        if is_entity_a_ped(entity) and not is_ped_a_player(entity) then
+            local info = {
+                {label = T"Name:", value = util.reverse_joaat(get_entity_model(entity))},
+                {label = T"Hash:", value = get_entity_model(entity)},
+                {label = T"Distance:", value = math.ceil(func.get_distance_between(players.user_ped(), entity)) .. "m"},
+                {label = T"Speed:", value = math.ceil(get_entity_speed(entity) * 2.236936) .. " MPH"},
+                {label = T"Health:", value = get_entity_health(entity) .. "/" .. get_entity_max_health(entity)},
+                {label = T"Relationship group:", value = get_ped_relationship_group_hash(entity)},
+                {label = T"Ped Relationship:", value = relationships[get_relationship_between_peds(entity, players.user_ped())]},
+                {label = T"Coord X:", value = string.format("%.3f", get_entity_coords(entity).x)},
+                {label = T"Coord Y:", value = string.format("%.3f", get_entity_coords(entity).y)},
+                {label = T"Coord Z:", value = string.format("%.3f", get_entity_coords(entity).z)}
+            }
+        
+            draw_rect_with_text(0.52, 0.35, 10, 0.14, {r = 0/255, g = 0/255, b = 0/255, a = 175/255})
+            for i, data in info do
+                draw_info_text(data.label, data.value, 0.52, 0.35 + (i-1) * 0.025, 130, 0.45, 0.44, true)
+            end
+        end
+
+        if is_entity_a_ped(entity) and is_ped_a_player(entity) then
+            local pid = network_get_player_index_from_ped(entity)
+            local info = {
+                info_rect1 = {
+                    {label = T"Name:", value = players.get_name(pid)},
+                    {label = T"RID:", value = players.get_rockstar_id(pid)},
+                    {label = T"IP:", value = dec_to_ipv4(players.get_connect_ip(pid))},
+                    {label = T"Rank:", value = check(players.get_rank(pid))},
+                    {label = T"K/D:", value = round(players.get_kd(pid), 2)},
+                    {label = T"Language:", value = languages[players.get_language(pid)]},
+                    {label = T"Controller:", value = bool(players.is_using_controller(pid))},
+                    {label = T"Host:", value = bool(pid == players.get_host())},
+                    {label = T"Script host:", value = bool(pid == players.get_script_host())},
+                    {label = T"Host queue:", value = queuecheck(players.get_host_queue_position(pid))}
+                },
+                info_rect2 = {
+                    {label = T"Org:", value = org(players.get_org_type(pid))},
+                    {label = T"Distance:", value = math.ceil(func.get_distance_between(players.user_ped(), entity)) .. "m"},
+                    {label = T"Speed:", value = math.ceil(get_entity_speed(entity) * 2.236936) .. " MPH"},
+                    {label = T"Health:", value = get_entity_health(entity) .. "/" .. get_entity_max_health(entity)},
+                    {label = T"Armor:", value = get_ped_armour(entity) .. "/" .. get_player_max_armour(pid)},
+                    {label = T"Godmode:", value = bool(players.is_godmode(pid))},
+                    {label = T"Off the radar:", value = bool(players.is_otr(pid))},
+                    {label = T"Weapon:", value = get_weapon_name_from_hash(get_selected_ped_weapon(entity))},
+                    {label = T"Coord X:", value = string.format("%.3f", get_entity_coords(entity).x)},
+                    {label = T"Coord Y:", value = string.format("%.3f", get_entity_coords(entity).y)},
+                    {label = T"Coord Z:", value = string.format("%.3f", get_entity_coords(entity).z)}
+                },
+                info_rect3 = {
+                    {label = T"Wanted level:", value = get_player_wanted_level(pid) .. "/" .. get_max_wanted_level()},
+                    {label = T"Atk you:", value = bool(players.is_marked_as_attacker(pid))},
+                    {label = T"Mod or Admin:", value = bool(players.is_marked_as_modder_or_admin(pid))},
+                    {label = T"Total:", value = format_money(players.get_money(pid))},
+                    {label = T"Wallet:", value = format_money(players.get_wallet(pid))},
+                    {label = T"Bank:", value = format_money(players.get_bank(pid))},
+                    {label = T"Tags:", value = check(players.get_tags_string(pid))}
+                }
+            }
+            
+            local drawPositions = {
+                {x = 0.52, y = 0.35, width = 10},
+                {x = 0.665, y = 0.35, width = 11},
+                {x = 0.81, y = 0.35, width = 8}
+            }
+
+            for i, position in drawPositions do
+                draw_rect_with_text(position.x, position.y, position.width, 0.14, {r = 0/255, g = 0/255, b = 0/255, a = 175/255})
+            end
+            
+            for j, infoRect in {info.info_rect1, info.info_rect2, info.info_rect3} do
+                for i, data in infoRect do
+                    local rectIndex = j
+                    if j == 3 and i == 7 then
+                        i = 8
+                    end
+                    draw_info_text(data.label, data.value, drawPositions[rectIndex].x, 0.35 + (i-1) * 0.025, 130, 0.45, 0.44, true)
+                end
+            end
+        end
+
+        if is_entity_a_vehicle(entity) then
+            local info = {
+                {label = T"Name:", value = util.reverse_joaat(get_entity_model(entity))},
+                {label = T"Hash:", value = get_entity_model(entity)},
+                {label = T"Speed:", value = math.ceil(get_entity_speed(entity) * 2.236936) .. " MPH"},
+                {label = T"RPM:", value = math.ceil(entities.get_rpm(entities.handle_to_pointer(entity)) * 6000) .. " RPM"},
+                {label = T"Engine health:", value = math.floor((get_vehicle_engine_health(entity) + 4000) / 5000 * 100) .. "%"},
+                {label = T"Body health:", value = math.floor(get_vehicle_body_health(entity) / 1000 * 100) .. "%"},
+                {label = T"Distance:", value = math.ceil(func.get_distance_between(players.user_ped(), entity)) .. "m"},
+                {label = T"Coord X:", value = string.format("%.3f", get_entity_coords(entity).x)},
+                {label = T"Coord Y:", value = string.format("%.3f", get_entity_coords(entity).y)},
+                {label = T"Coord Z:", value = string.format("%.3f", get_entity_coords(entity).z)}
+            }
+            
+            local passengers = func.get_passengers(entity)
+            local passengers_number = #passengers
+            if func.any_passengers(entity) then
+                passengers_number = #passengers + 1
+            end
+            
+            draw_rect_with_text(0.52, 0.35, 10 + passengers_number, 0.14, {r = 0/255, g = 0/255, b = 0/255, a = 175/255})
+            for i, data in info do
+                draw_info_text(data.label, data.value, 0.52, 0.35 + (i-1) * 0.025, 130, 0.45, 0.44, true)
+            end
+            
+            if func.any_passengers(entity) then
+                local pos_y = 0.625
+                for i = 1, passengers_number - 1 do
+                    draw_info_text(T"Seat, Ped:", seat_names[passengers[i].seat] .. ", " .. tostring(passengers[i].ped), 0.52, pos_y, 130, 0.45, 0.44, true)
+                    pos_y = pos_y + 0.025
+                end
+
+                if is_ped_a_player(passengers[1].ped) then
+                    local ped = passengers[1].ped
+                    local pid = network_get_player_index_from_ped(ped)
+                    local info = {
+                        info_rect1 = {
+                            {label = T"Name:", value = players.get_name(pid)},
+                            {label = T"RID:", value = players.get_rockstar_id(pid)},
+                            {label = T"IP:", value = dec_to_ipv4(players.get_connect_ip(pid))},
+                            {label = T"Rank:", value = check(players.get_rank(pid))},
+                            {label = T"K/D:", value = round(players.get_kd(pid), 2)},
+                            {label = T"Language:", value = languages[players.get_language(pid)]},
+                            {label = T"Controller:", value = bool(players.is_using_controller(pid))},
+                            {label = T"Host:", value = bool(pid == players.get_host())},
+                            {label = T"Script host:", value = bool(pid == players.get_script_host())},
+                            {label = T"Host queue:", value = queuecheck(players.get_host_queue_position(pid))}
+                        },
+                        info_rect2 = {
+                            {label = T"Org:", value = org(players.get_org_type(pid))},
+                            {label = T"Distance:", value = math.ceil(func.get_distance_between(players.user_ped(), ped)) .. "m"},
+                            {label = T"Speed:", value = math.ceil(get_entity_speed(ped) * 2.236936) .. " MPH"},
+                            {label = T"Health:", value = get_entity_health(ped) .. "/" .. get_entity_max_health(ped)},
+                            {label = T"Armor:", value = get_ped_armour(ped) .. "/" .. get_player_max_armour(pid)},
+                            {label = T"Godmode:", value = bool(players.is_godmode(pid))},
+                            {label = T"Off the radar:", value = bool(players.is_otr(pid))},
+                            {label = T"Weapon:", value = get_weapon_name_from_hash(get_selected_ped_weapon(ped))},
+                            {label = T"Coord X:", value = string.format("%.3f", get_entity_coords(ped).x)},
+                            {label = T"Coord Y:", value = string.format("%.3f", get_entity_coords(ped).y)},
+                            {label = T"Coord Z:", value = string.format("%.3f", get_entity_coords(ped).z)}
+                        },
+                        info_rect3 = {
+                            {label = T"Wanted level:", value = get_player_wanted_level(pid) .. "/" .. get_max_wanted_level()},
+                            {label = T"Atk you:", value = bool(players.is_marked_as_attacker(pid))},
+                            {label = T"Mod or Admin:", value = bool(players.is_marked_as_modder_or_admin(pid))},
+                            {label = T"Total:", value = format_money(players.get_money(pid))},
+                            {label = T"Wallet:", value = format_money(players.get_wallet(pid))},
+                            {label = T"Bank:", value = format_money(players.get_bank(pid))},
+                            {label = T"Tags:", value = check(players.get_tags_string(pid))}
+                        }
+                    }
+                    
+                    local drawPositions = {
+                        {x = 0.665, y = 0.35, width = 10},
+                        {x = 0.81, y = 0.35, width = 11},
+                        {x = 0.665, y = 0.615, width = 8}
+                    }
+        
+                    for i, position in drawPositions do
+                        draw_rect_with_text(position.x, position.y, position.width, 0.14, {r = 0/255, g = 0/255, b = 0/255, a = 175/255})
+                    end
+                    
+                    for j, infoRect in {info.info_rect1, info.info_rect2, info.info_rect3} do
+                        for i, data in infoRect do
+                            local posY = 0.35
+                            if j == 3 then
+                                if i == 7 then
+                                    i = 8
+                                end
+                                posY = 0.615
+                            end
+                            draw_info_text(data.label, data.value, drawPositions[j].x, posY + (i-1) * 0.025, 130, 0.45, 0.44, true)
+                        end
+                    end
+                end
+            end
+        end
+
+        if is_entity_an_object(entity) then
+            local info = {
+                {label = T"Name:", value = util.reverse_joaat(get_entity_model(entity))},
+                {label = T"Hash:", value = get_entity_model(entity)},
+                {label = T"Pickup:", value = bool(is_object_a_pickup(entity))},
+                {label = T"Coord X:", value = string.format("%.3f", get_entity_coords(entity).x)},
+                {label = T"Coord Y:", value = string.format("%.3f", get_entity_coords(entity).y)},
+                {label = T"Coord Z:", value = string.format("%.3f", get_entity_coords(entity).z)}
+            }
+
+            draw_rect_with_text(0.52, 0.35, 6, 0.14, {r = 0/255, g = 0/255, b = 0/255, a = 175/255})
+            for i, data in info do
+                draw_info_text(data.label, data.value, 0.52, 0.35 + (i-1) * 0.025, 130, 0.45, 0.44, true)
+            end
+        end
+	end
+end)
+
+
+
+
+
+
+
