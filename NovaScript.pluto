@@ -1,3 +1,5 @@
+--Tis script is made my Nova_Plays if you need any help with the script join https://discord.gg/E4m6pMUwpx--
+
 local scripts_dir = filesystem.scripts_dir()
 local requirements = {
     folder_paths = {
