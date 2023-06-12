@@ -370,17 +370,32 @@ end)
 local custom_vehicle = ""
 vehicle_gun_list:action(T"Custom", {"Ncustomveh"}, "", function()
     menu.show_command_box("Ncustomveh ")
-end, function(vehicle)
-    custom_vehicle = vehicle
+end, function(given_model)
+    local model = util.joaat(given_model)
+    if is_model_valid(model) and is_model_a_vehicle(model) then
+        custom_vehicle = given_model
+    else
+        util.toast(T"Vehicle not found.")
+    end
 end)
+
 ----------------
 --VEHICLE TYPE--
 ----------------
-local veh_hash = util.joaat("italigtb2")
-local veh_hashes = {util.joaat("italigtb2"), util.joaat("terbyte"), util.joaat("speedo2"), util.joaat("trash2"), util.joaat("vigilante"), util.joaat("lazer"), util.joaat("insurgent2"), util.joaat("cutter"), util.joaat("phantom2"), util.joaat(custom_vehicle)}
+local veh_hash = "italigtb2"
+local veh_hashes = {"italigtb2", "terbyte", "speedo2", "trash2", "vigilante", "lazer", "insurgent2", "cutter", "phantom2", "custom"}
 local veh_options = {"italigtb2", "terbyte", "speedo2", "trash2", "vigilante", "lazer", "insurgent2", "cutter", "phantom2", T"Custom"}
 vehicle_gun_list:list_action(T"Vehicle", {}, "", veh_options, function(index)
-    veh_hash = veh_hashes[index]
+    if index != 10 then
+        veh_hash = veh_hashes[index]
+    else
+        local model = util.joaat(custom_vehicle)
+        if is_model_valid(model) and is_model_a_vehicle(model) then
+            veh_hash = custom_vehicle
+        else
+            util.toast(T"Vehicle not found.")
+        end
+    end
 end)
 
 ---------------
@@ -389,7 +404,7 @@ end)
 local vehicle_gun = {speed = 200, set_in_vehicle = false, no_gravity = false}
 vehicle_gun_list:toggle_loop(T"Vehicle Gun", {}, "", function()
     if is_ped_shooting(players.user_ped()) and not is_ped_in_any_vehicle(players.user_ped(), false) then
-        local hash = veh_hash
+        local hash = util.joaat(veh_hash)
         util.request_model(hash)
         local offset_coords = get_offset_from_entity_in_world_coords(players.user_ped(), 0.0, 5.0, 3.0)
         local vehicle = entities.create_vehicle(hash, offset_coords, 0)

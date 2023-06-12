@@ -1078,8 +1078,8 @@ end)
 -----------------
 --SPAWN VEHICLE--
 -----------------
-vehicle_main:action(T"Spawn Vehicle", {"spawn"}, "", function()
-    menu.show_command_box("spawn" .. players.get_name(pid) .. " ")
+vehicle_main:action(T"Spawn Vehicle", {"Nspawn"}, "", function()
+    menu.show_command_box("Nspawn" .. players.get_name(pid) .. " ")
 end, function(given_model)
     local model = util.joaat(given_model)
     if is_model_valid(model) and is_model_a_vehicle(model) then
@@ -1088,7 +1088,7 @@ end, function(given_model)
         local offset = get_offset_from_entity_in_world_coords(ped, 0.0, 4.0, 0.0)
         local vehicle = entities.create_vehicle(model, offset, get_entity_heading(ped))
     else
-        util.toast("Vehicle not found.")
+        util.toast(T"Vehicle not found.")
     end
 end)
 
@@ -1124,7 +1124,9 @@ vehicle_main:action(T"Hijack Vehicle", {}, "", function()
                 end
 
                 util.yield(650)
-                entities.delete_by_handle(vehicle_hijack.ped)
+                if does_entity_exist(vehicle_hijack.ped) and vehicle_hijack.ped != nil then
+                    entities.delete_by_handle(vehicle_hijack.ped)
+                end
                 task_warp_ped_into_vehicle(players.user_ped(), vehicle, -1)
             else
                 util.toast(T"The player is on a motorcycle -> a motorcycle causes issues with the vehicle kick trying additional kick.")

@@ -317,7 +317,7 @@ local select_song_list = sing_in_chat_list:list(T"Songs")
 --CREATE NEW SONG FILE--
 ------------------------
 select_song_list:action(T"Create New Song File", {"Ncreatenewsongfile"}, "", function()
-    menu.show_command_box("createnewsongfile ")
+    menu.show_command_box("Ncreatenewsongfile ")
 end, function(file_name)
     local file_path = $"{scripts_dir}/lib/NovaScript/Songs/{file_name}.txt"
     local file = io.open(file_path, "w")
