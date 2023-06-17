@@ -20,6 +20,12 @@ local function hulk_buttons()
     sf:draw_fullscreen()
 end
 
+local function get_random_vehicle()
+    local vehicles = entities.get_all_vehicles_as_pointers()
+    local random_vehicle = vehicles[math.random(1, #vehicles)]
+    return entities.pointer_to_handle(random_vehicle)
+end
+
 --gets the closest ped to yourself
 local function get_closest_ped(position)
 	local closest_dist = 999999999999
@@ -990,6 +996,23 @@ self_main:action(T"Enter Nearest Vehicle", {}, "", function()
 	end
 end)
 
+-------------------------
+--ENTER RANDOM VEHICLE--
+-------------------------
+self_main:action(T"Enter Random Vehicle", {}, "", function()
+	if not is_ped_in_any_vehicle(players.user_ped(), false) then
+		local player_pos = players.get_position(players.user())
+		local vehicle = get_random_vehicle()
+		local ped = get_ped_in_vehicle_seat(vehicle, -1, true)
+		if is_ped_a_player(ped) then
+			util.toast(T"A player is in the randomly selected vehicle.")
+		else
+		    entities.delete_by_handle(ped)
+			set_ped_into_vehicle(players.user_ped(), vehicle, -1)
+		end
+	end
+end)
+
 ------------------------
 --GO TO NEAREST PLAYER--
 ------------------------
@@ -1029,7 +1052,6 @@ self_main:action(T"Hijack Random Players Vehicle", {}, "", function()
             if player != nil then
                 continue
             end
-            util.toast(i)
         end
 
         if player != nil then

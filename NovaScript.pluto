@@ -58,6 +58,7 @@ local requirements = {
         $"{scripts_dir}/lib/NovaScript/ent_func.lua",
         $"{scripts_dir}/lib/NovaScript/tables.pluto",
         $"{scripts_dir}/lib/NovaScript/tables.lua"
+        $"{scripts_dir}/lib/NovaScript/NovaS_translations.lua",
     },
 }
 

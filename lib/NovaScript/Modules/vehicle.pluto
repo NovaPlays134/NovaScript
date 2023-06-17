@@ -139,7 +139,7 @@ local vehicle_fly_opt;vehicle_fly_opt = vehilce_fly_list:toggle_loop(T"Vehicle F
 end, function()
     local vehicle = entities.get_user_vehicle_as_handle(false)
     freeze_entity_position(vehicle, false)
-    set_entity_collision(left_vehicle, true, true)
+    set_entity_collision(vehicle, true, true)
 end)
 
 vehilce_fly_list:slider(T"Speed", {"Nvehfly_speed"}, "", 10, 350, 75, 1, function(count)
@@ -250,6 +250,7 @@ movement_list:toggle_loop(T"Drift", {},  T"While holding down shift, you drift."
         end
     end
 end, function()
+    local vehicle = entities.get_user_vehicle_as_handle(false)
     set_vehicle_reduce_grip(vehicle, false)
 end)
 

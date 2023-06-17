@@ -186,6 +186,8 @@ end
 -----------------------------------------------
 local root = menu.my_root()
 local world_main = root:list(T"World")
+local race_list = world_main:list(T"Race")
+local vehicle_escort_list = world_main:list(T"Vehicle Escort")
 local all_vehicles_list = world_main:list(T"All Vehicles")
 local firework_list = world_main:list(T"Firework")
 local bouncy_water_list = world_main:list(T"Bouncy Water")
@@ -194,6 +196,213 @@ local train_controls_list = world_main:list(T"Train Controls")
 -----------------------------------------------
 --------------------OPTIONS--------------------
 -----------------------------------------------
+----------------
+--SET WAYPOINT--
+----------------
+local race_waypoints = {}
+local blips = {}
+race_list:action(T"Set Waypoint", {}, "", function()
+    local position = players.get_position(players.user())
+    local distance_from_ground = get_entity_height_above_ground(players.user_ped())
+    local waypoint_coords = v3.new(position.x, position.y, position.z - distance_from_ground)
+    local blip = add_blip_for_coord(waypoint_coords.x, waypoint_coords.y, waypoint_coords.z)
+    table.insert(race_waypoints, waypoint_coords)
+    table.insert(blips, blip)
+end)
+
+-------------------
+--CLEAR WAYPOINTS--
+-------------------
+race_list:action(T"Clear Waypoints", {}, "", function()
+    race_waypoints = {}
+    for i, blip in blips do
+        util.remove_blip(blip)
+    end
+    blips = {}
+end)
+
+------------------
+--VEHICLE AMOUNT--
+------------------
+local vehicle_amount = 3
+race_list:slider(T"Vehicle Amount", {"NRvehicleamount"}, "", 2, 10, 3, 1, function(count)
+    vehicle_amount = count
+end)
+
+local driving_styles_names = {T"Avoid Traffic Extremely", T"Sometimes Overtake Traffic", T"Rushed", T"Normal", T"Ignore Lights", T"Avoid Traffic", T"Lazy", T"Precise"}
+local driving_styles = {6, 5, 1074528293, 786603, 2883621, 786468, 1076, 8388614}
+local set_driving_style_race = 786468
+race_list:textslider(T"Driving Style", {}, "", driving_styles_names, function(index, name)
+    set_driving_style_race = driving_styles[index]
+end)
+
+------------------------
+--JOIN THE RACE URSELF--
+------------------------
+local join_urself = false
+race_list:toggle(T"Join The Race Urself", {}, "", function(on)
+    join_urself = on
+end)
+
+--------------
+--START RACE--
+--------------
+local vehicle_blips = {}
+local spawned_entitys = {}
+local start_race_opt;start_race_opt = race_list:toggle(T"Start Race", {}, "", function(on)
+    if on then
+        if #race_waypoints > 1 then
+            local spawn_coords = race_waypoints[1]
+            local random_vehicle
+            if join_urself then
+                random_vehicle = math.random(1, vehicle_amount)
+            end
+            for i = 1, vehicle_amount do
+                if i > 1 then
+                    spawn_coords = get_offset_from_entity_in_world_coords(spawned_entitys[i - 1].vehicle, 0, -10, 0)
+                end
+
+                local vehicle_hash = util.joaat("italigto")
+                util.request_model(vehicle_hash)
+                local vehicle = entities.create_vehicle(vehicle_hash, spawn_coords, 0)
+
+                local vehicle_coords = get_entity_coords(vehicle, true)
+                local rel = v3.new(race_waypoints[2])
+                rel:sub(vehicle_coords)
+                local rotation = rel:toRot()
+                set_entity_rotation(vehicle, rotation.x, rotation.y, rotation.z, 2, false)
+                local vehicle_blip = add_blip_for_entity(vehicle)
+                table.insert(vehicle_blips, vehicle_blip)
+    
+                local ped_hash = util.joaat("a_m_y_acult_02")
+                util.request_model(ped_hash)
+                local ped = entities.create_ped(1, ped_hash, spawn_coords, 0)
+                if random_vehicle != nil and random_vehicle == i then
+                    task_warp_ped_into_vehicle(players.user_ped(), vehicle, -1)
+                    entities.delete_by_handle(ped)
+                else
+                    task_warp_ped_into_vehicle(ped, vehicle, -1)
+                end
+                table.insert(spawned_entitys, {vehicle = vehicle, ped = ped, waypoint = 2})
+            end
+            util.yield(2000)
+            for i, entitys in spawned_entitys do
+               task_vehicle_drive_to_coord(entitys.ped, entitys.vehicle, race_waypoints[entitys.waypoint].x, race_waypoints[entitys.waypoint].y, race_waypoints[entitys.waypoint].y, get_vehicle_estimated_max_speed(entitys.vehicle), 1, get_entity_model(entitys.vehicle), set_driving_style_race, 5, 0)
+            end
+
+            local new_checkpoint = false
+            while start_race_opt.value do
+                for j, entitys in spawned_entitys do
+                    if func.get_distance_between(entitys.vehicle, race_waypoints[entitys.waypoint]) <= 25 then
+                        if entitys.waypoint != #race_waypoints then
+                            entitys.waypoint = entitys.waypoint + 1
+                        else
+                            entitys.waypoint = 1
+                        end
+                        task_vehicle_drive_to_coord(entitys.ped, entitys.vehicle, race_waypoints[entitys.waypoint].x, race_waypoints[entitys.waypoint].y, race_waypoints[entitys.waypoint].y, get_vehicle_estimated_max_speed(entitys.vehicle), 1, get_entity_model(entitys.vehicle), set_driving_style_race, 5, 0)
+                    end
+                end
+                util.yield()
+            end
+
+        else
+            util.toast(T"You need to have 2 waypoints set before u can start the race.")
+            start_race_opt.value = false
+        end
+    else
+        for i, entitys in spawned_entitys do
+            entities.delete_by_handle(entitys.vehicle)
+            entities.delete_by_handle(entitys.ped)
+        end
+        spawned_entitys = {}
+        for i, blip in vehicle_blips do
+            util.remove_blip(blip)
+        end
+        vehicle_blips = {}
+    end
+end)
+
+util.on_stop(function()
+    for i, blip in blips do
+        util.remove_blip(blip)
+    end
+    blips = {}
+end)
+
+-----------------
+--DRIVING STYLE--
+-----------------
+local set_driving_style_escort = 786468
+vehicle_escort_list:textslider(T"Driving Style", {}, "", driving_styles_names, function(index, name)
+    set_driving_style_escort = driving_styles[index]
+end)
+
+------------------
+--VEHICLE ESCORT--
+------------------
+local vehicle_blips_escort = {}
+local spawned_entitys_escort = {}
+local escort_opt;escort_opt = vehicle_escort_list:toggle(T"Vehicle Escort", {}, "", function(on)
+    if on then
+        if get_first_blip_info_id(8) != 0 then
+            local spawn_coords = get_offset_from_entity_in_world_coords(players.user_ped(), 0, 10, 0)
+            for i = 1, 3 do
+                if i > 1 and #spawned_entitys_escort >= (i - 1) then
+                    spawn_coords = get_offset_from_entity_in_world_coords(spawned_entitys_escort[i - 1].vehicle, 0, -10, 0)
+                end
+    
+                local vehicle_hash = util.joaat("superd")
+                util.request_model(vehicle_hash)
+                local vehicle = entities.create_vehicle(vehicle_hash, spawn_coords, 0)
+                local heading = get_entity_heading(players.user_ped())
+                set_entity_heading(vehicle, heading)
+                local vehicle_blip = add_blip_for_entity(vehicle)
+                table.insert(vehicle_blips_escort, vehicle_blip)
+                set_vehicle_engine_on(vehicle, true, true, false)
+
+                local ped_hash = util.joaat("s_m_m_highsec_02")
+                util.request_model(ped_hash)
+                local ped = entities.create_ped(1, ped_hash, get_offset_from_entity_in_world_coords(vehicle, -1, 0, 0), 0)
+                task_enter_vehicle(ped, vehicle, -1, -1, 1.0, 24, 0)
+                if i == 2 then
+                    task_warp_ped_into_vehicle(players.user_ped(), vehicle, 0)
+                end
+                if i != 1 then
+                    task_vehicle_escort(ped, vehicle, spawned_entitys_escort[i - 1].vehicle, -1, 20, set_driving_style_escort, 0, 0, 100)
+                end
+                    
+                table.insert(spawned_entitys_escort, {vehicle = vehicle, ped = ped})
+
+            end
+            util.yield(5000)
+            local x, y, z, bool = players.get_waypoint(players.user())
+            task_vehicle_drive_to_coord(spawned_entitys_escort[1].ped, spawned_entitys_escort[1].vehicle, x, y, y, 20, 1, get_entity_model(spawned_entitys_escort[1].vehicle), set_driving_style_escort, 5, 0)
+
+            while escort_opt.value do
+                if get_first_blip_info_id(8) == 0 then
+                    util.yield(3000)
+                    for i, entitys in spawned_entitys_escort do
+                        bring_vehicle_to_halt(entitys.vehicle, 0.0, 10)
+                    end
+                    task_leave_vehicle(players.user_ped(), entities.get_user_vehicle_as_handle(false), 0)
+                    util.yield(4000)
+                    escort_opt.value = false
+                end
+                util.yield()
+            end
+        else
+            util.toast(T"No waypoint set.")
+            escort_opt.value = false
+        end
+    else
+        for i, entitys in spawned_entitys_escort do
+            entities.delete_by_handle(entitys.vehicle)
+            entities.delete_by_handle(entitys.ped)
+        end
+        spawned_entitys_escort = {}
+    end
+end)
+
 ------------------------
 --EXPLODE ALL VEHICLES--
 ------------------------
@@ -731,10 +940,3 @@ world_main:toggle_loop(T"Aim Information", {}, "", function()
         end
 	end
 end)
-
-
-
-
-
-
-

@@ -185,6 +185,7 @@ local online_main = root:list(T"Online")
 local explode_all_list = online_main:list(T"Explode all")
 local chat_list = online_main:list(T"Chat")
 local player_esp_list = online_main:list(T"Player ESP")
+local smoke_bomb_list = online_main:list(T"Smoke Bomb")
 -----------------------------------------------
 --------------------OPTIONS--------------------
 -----------------------------------------------
@@ -343,35 +344,37 @@ end
 local song_toggles = {}
 for i, file in song_files do
     song_toggles[i] = select_song_list:toggle(file.name, {}, "", function(on)
-        for j, v in song_files do
-            if song_toggles[j] != song_toggles[i] and song_toggles[j].value then
-                song_toggles[i].value = false
-                break
-            end
-        end
-        if on and util.is_session_started() then
-            local selected_file = io.open(file.file_path, "r")
-            if selected_file then
-                if selected_file:seek("end") == 0 then
+        if util.is_session_started() then
+            for j, v in song_files do
+                if song_toggles[j] != song_toggles[i] and song_toggles[j].value then
                     song_toggles[i].value = false
-                    is_empty = true
-                    selected_file:close()
-                    util.toast(T"Empty file.")
-                else
-                    if not is_empty then
-                        while song_toggles[i].value do
-                            selected_file:seek("set")
-                            for line in selected_file:lines() do
-                                if not song_toggles[i].value then
-                                    song_toggles[i].value = false
-                                    break
-                                end
-                                chat.send_message(line, false, true, true)
-                                util.yield(message_delay)
-                            end
-                            util.yield()
-                        end
+                    break
+                end
+            end
+            if on then
+                local selected_file = io.open(file.file_path, "r")
+                if selected_file then
+                    if selected_file:seek("end") == 0 then
+                        song_toggles[i].value = false
+                        is_empty = true
                         selected_file:close()
+                        util.toast(T"Empty file.")
+                    else
+                        if not is_empty then
+                            while song_toggles[i].value do
+                                selected_file:seek("set")
+                                for line in selected_file:lines() do
+                                    if not song_toggles[i].value then
+                                        song_toggles[i].value = false
+                                        break
+                                    end
+                                    chat.send_message(line, false, true, true)
+                                    util.yield(message_delay)
+                                end
+                                util.yield()
+                            end
+                            selected_file:close()
+                        end
                     end
                 end
             end
@@ -389,7 +392,7 @@ local poll_list = chat_list:list(T"Poll")
 ---------------------
 local poll_question
 poll_list:action(T"Set Poll Question", {"Nsendpollquestion"}, "", function()
-    menu.show_command_box("sendpollquestion ")
+    menu.show_command_box("Nsendpollquestion ")
 end, function(question)
     poll_question = question
 end)
@@ -399,7 +402,7 @@ end)
 ------------
 local choice_A
 poll_list:action(T"Choice A", {"NchoiceA"}, "", function()
-    menu.show_command_box("choiceA ")
+    menu.show_command_box("NchoiceA ")
 end, function(choice)
     choice_A = choice
 end)
@@ -409,7 +412,7 @@ end)
 ------------
 local choice_B
 poll_list:action(T"Choice B", {"NchoiceB"}, "", function()
-    menu.show_command_box("choiceB ")
+    menu.show_command_box("NchoiceB ")
 end, function(choice)
     choice_B = choice
 end)
@@ -431,8 +434,8 @@ poll_list:action(T"Start Poll", {}, T"Will Read the chat in the voting period ti
             util.toast(T"A option has not yet been filled.")
         else
             local chat_messages_within_poll_time = {}
-            chat.send_message("[" .. "POLL" .. "] " .. poll_question, false, true, true)
-            new_chat_handler = chat.on_message(function(packet_sender, message_sender, text, team_chat)
+            chat.send_message("[" .. "POLL" .. "] " .. poll_question  .. ": " .. choice_A  .. " or " .. choice_B, false, true, true)
+            local new_chat_handler = chat.on_message(function(packet_sender, message_sender, text, team_chat)
                 table.insert(chat_messages_within_poll_time, text)
             end)
             util.yield(voting_period)
@@ -756,3 +759,62 @@ local line_esp_opt;line_esp_opt = player_esp_list:toggle_loop(T"Line ESP", {}, "
         line_esp_opt.value = false
     end
 end)
+
+--------------
+--SMOKE BOMB--
+--------------
+local activated_players = {}
+local active_smoke_bombs = {}
+local new_chat_handler = nil
+local smoke_bomb_opt = smoke_bomb_list:toggle(T"Smoke Bomb", {}, "Cmd is !smoke in the chat, this will spawn smoke in the coords the player shoots one time.", function(on)
+    if on then
+        new_chat_handler = chat.on_message(function(packet_sender, message_sender, text, team_chat)
+            if text == "!smoke" then
+                table.insert(activated_players, packet_sender)
+            end
+        end)
+    end
+    if not on then
+        util.remove_handler(new_chat_handler)
+    end
+end)
+
+local smoke_duration = 5
+smoke_bomb_list:slider(T"Smoke Duration", {"Nsmokeduration"}, "", 1, 20, 5, 1, function(count)
+	smoke_duration = count
+end)
+
+local smoke_scale = 5
+smoke_bomb_list:slider(T"Smoke Scale", {"Nsmokescale"}, "", 1, 8, 5, 1, function(count)
+	smoke_scale = count
+end)
+
+util.create_tick_handler(function()
+
+    if smoke_bomb_opt.value then
+        for i, pid in activated_players do
+	        local hit_coords = v3.new()
+	        if get_ped_last_weapon_impact_coord(get_player_ped_script_index(pid), hit_coords) then
+                local hash = util.joaat("w_ex_grenadesmoke")
+                util.request_model(hash)
+                local smoke_grenade = entities.create_object(hash, hit_coords)
+                func.use_fx_asset("scr_as_trans")
+                local ptfx = start_networked_particle_fx_looped_on_entity("scr_as_trans_smoke", smoke_grenade, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, smoke_scale, false, false, false, 0, 0, 0, 255)
+                table.insert(active_smoke_bombs, {ptfx = ptfx, object = smoke_grenade, delay = util.current_time_millis() + (smoke_duration * 1000)})
+                table.remove(activated_players, i)
+            end
+        end
+
+        if #active_smoke_bombs != 0 then
+            for i, bomb in active_smoke_bombs do
+                if bomb.delay < util.current_time_millis() then
+                    stop_particle_fx_looped(bomb.ptfx, false)
+                    table.remove(active_smoke_bombs, i)
+                    entities.delete_by_handle(bomb.object)
+                end
+            end
+        end
+    end
+
+end)
+

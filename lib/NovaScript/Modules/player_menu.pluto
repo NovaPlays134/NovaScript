@@ -176,7 +176,7 @@ local rotation_list = vehicle_main:list(T"Rotate Vehicle")
 -------------------
 local teleports = {
     {name=T"Teleport To Maze Bank Helipad", pos= v3.new(-75.261375,-818.674,326.17517)},
-    {name=T"Teleport To Maze Bank Helipad", pos= v3.new(492.30,5589.44,794.28)},
+    {name=T"Teleport To Mt.Chiliad", pos= v3.new(492.30,5589.44,794.28)},
     {name=T"Teleport Deep Underwater", pos= v3.new(4497.2207,8028.3086,-32.635174)},
     {name=T"Teleport On Water Surface", pos= v3.new(1503.0942,8746.0700,0)},
     {name=T"Teleport Into Large Cell", pos= v3.new(1737.1896,2634.897,45.56497)},
@@ -191,10 +191,12 @@ for i, data in teleports do
                 set_entity_coords(vehicle, data.pos.x, data.pos.y, data.pos.z, false, false, false, false)
                 util.toast(T"Success")
             end)
+        --temp removed--
+        --[[
         else
             local target_ped = get_player_ped_script_index(pid)
             local is_spectating = menu.ref_by_command_name("spectate" .. players.get_name(pid):lower()).value
-            util.trigger_script_event(1 << pid, {891653640, players.user(), 1, 32, network_hash_from_player_handle(pid), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
+            util.trigger_script_event(1 << pid, {1103127469, players.user(), 1, 32, network_hash_from_player_handle(pid), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
             util.yield(2000)
             if not is_spectating then
                 menu.ref_by_command_name("spectate" .. players.get_name(pid)).value = true
@@ -212,6 +214,7 @@ for i, data in teleports do
             if not is_spectating then
                 menu.ref_by_command_name("spectate" .. players.get_name(pid)).value = false
             end
+            --]]
         end
     end)
 end
@@ -695,11 +698,10 @@ end)
 -----------
 --VEHICLE--
 -----------
-local rampage_vehicles = {"faggio3", "rcbandito", "veto2", "police3", "mower", "khanjali", "blazer4", "bmx", "rrocket", "oppressor"}
+local rampage_vehicles = {"faggio3", "rcbandito", "veto2", "police3", "mower", "khanjali", "blazer4", "bmx", "rrocket", "oppressor", "buzzard", "cargobob", "seasparrow"}
 local rampage_vehicle = util.joaat("faggio3")
 vehicle_rampage_list:list_select(T"Vehicle", {}, "", rampage_vehicles, 1, function(index)
     rampage_vehicle = util.joaat(rampage_vehicles[index])
-    util.toast(rampage_vehicles[index])
 end)
 
 ------------------
@@ -800,7 +802,7 @@ for i, data in PTFX_lags do
         local ped = get_player_ped_script_index(pid)
         local player_pos = get_entity_coords(ped, true)
         func.use_fx_asset(data.asset)
-        start_networked_particle_fx_non_looped_at_coord(data.particle, player_pos.x, player_pos.y, player_pos.z, 0, 0, 0, 10.0, true, true, true)
+        start_networked_particle_fx_non_looped_at_coord(data.particle, player_pos.x, player_pos.y, player_pos.z, 0, 0, 0, 10.0, false, false, false)
     end, function()
         remove_named_ptfx_asset(data.asset)
     end)
@@ -1132,6 +1134,7 @@ vehicle_main:action(T"Hijack Vehicle", {}, "", function()
                 util.toast(T"The player is on a motorcycle -> a motorcycle causes issues with the vehicle kick trying additional kick.")
                 local ped = get_player_ped_script_index(pid)
                 clear_ped_tasks_immediately(ped)
+                util.yield(350)
                 task_warp_ped_into_vehicle(players.user_ped(), vehicle, -1)
             end
         end)
