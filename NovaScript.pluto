@@ -17,6 +17,7 @@ local requirements = {
         $"{scripts_dir}/lib/NovaScript/Modules/vehicle.pluto",
         $"{scripts_dir}/lib/NovaScript/Modules/weapon.pluto",
         $"{scripts_dir}/lib/NovaScript/Modules/world.pluto",
+        $"{scripts_dir}/lib/NovaScript/Modules/bodyguards.pluto",
         $"{scripts_dir}/lib/Novascript/Modules/player_menu.pluto",
         $"{scripts_dir}/lib/Novascript/NovaS_translations.pluto",
         $"{scripts_dir}/lib/Novascript/NovaScript_natives.pluto",
@@ -30,6 +31,7 @@ local requirements = {
         "'vehicle module'",
         "'weapon module'",
         "'world module'",
+        "'bodyguards module'",
         "'player_menu module'",
         "'NovaS_translations'",
         "'NovaScript_natives'",
@@ -43,6 +45,7 @@ local requirements = {
         "NovaScript/Modules/vehicle",
         "NovaScript/Modules/weapon",
         "NovaScript/Modules/world",
+        "NovaScript/Modules/bodyguards",
         "Novascript/Modules/player_menu"
     },
     modules_names = {
@@ -51,6 +54,7 @@ local requirements = {
         "'vehicle module'",
         "'weapon module'",
         "'world module'",
+        "'bodyguards module'",
         "'player_menu module'"
     },
     old_files_paths = {
@@ -76,6 +80,8 @@ for i, file_path in requirements.file_paths do
 end
 
 util.keep_running()
+local scaleform = require("ScaleformLib")
+sf = scaleform("instructional_buttons")
 
 
 local is_installed = {}
@@ -104,22 +110,21 @@ if is_installed[7] and is_installed[8] and is_installed[9] and is_installed[10] 
     
     util.ensure_package_is_installed("lua/ScaleformLib")
     
-    for i, mod in requirements.modules do
-        package.loaded[mod] = nil
-        xpcall(
-            function()
-                local required_mod = require(mod)
-                if i == 1 then
-                    required_mod.init()
+    util.execute_in_os_thread(function()
+        for i, mod in requirements.modules do
+            package.loaded[mod] = nil
+            xpcall(
+                function()
+                    local required_mod = require(mod)
+                end,
+                function(err)
+                    local failed_mod_name = requirements.modules_names[i]
+                    util.toast($"Failed to load: {failed_mod_name}. Check the log for more info")
+                    util.log($"[NovaScript]: Failed to load a module ({failed_mod_name}), error: {err}")
                 end
-            end,
-            function(err)
-                local failed_mod_name = requirements.modules_names[i]
-                util.toast($"Failed to load: {failed_mod_name}. Check the log for more info")
-                util.log($"[NovaScript]: Failed to load a module ({failed_mod_name}), error: {err}")
-            end
-        )
-    end
+            )
+        end
+    end)
     
     if is_installed[11] then
         local T = require("NovaScript.NovaS_translations")
@@ -182,6 +187,7 @@ if is_installed[7] and is_installed[8] and is_installed[9] and is_installed[10] 
         --------------------OPTIONS--------------------
         -----------------------------------------------
         local root = menu.my_root()
+        root:divider("")
         root:hyperlink(T"Join The Discord Server", "https://discord.gg/E4m6pMUwpx")
         
         local credit_text_positions = {}
@@ -232,7 +238,7 @@ if is_installed[7] and is_installed[8] and is_installed[9] and is_installed[10] 
                 set_frontend_radio_active(false)
             end
         end)
-        
+
         if SCRIPT_MANUAL_START and not SCRIPT_SILENT_START then
             util.create_thread(function()
                 local l = -100

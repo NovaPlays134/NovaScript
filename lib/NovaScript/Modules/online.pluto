@@ -44,8 +44,6 @@ local function draw_esp(ped, colour)
     end
 end
 
-
-
 local function draw_box_front(pos1, pos2, neck, offset, colour)
     draw_line(pos1.x, pos1.y, neck.z + 0.25, pos2.x, pos2.y, neck.z + 0.25, colour.r, colour.g, colour.b, colour.a)
     draw_line(pos1.x, pos1.y, offset.z, pos2.x, pos2.y, offset.z, colour.r, colour.g, colour.b, colour.a)
@@ -787,6 +785,34 @@ end)
 local smoke_scale = 5
 smoke_bomb_list:slider(T"Smoke Scale", {"Nsmokescale"}, "", 1, 8, 5, 1, function(count)
 	smoke_scale = count
+end)
+
+online_main:divider("")
+
+------------------
+--EXPLOSIVE HITS--
+------------------
+online_main:toggle_loop(T"Explosive Hits", {}, T"Only works for players around u.", function()
+	local hit_coords = v3.new()
+    for i, pid in players.list(true, true, true) do
+        local ped = get_player_ped_script_index(pid)
+	    if get_ped_last_weapon_impact_coord(ped, hit_coords) and get_selected_ped_weapon(ped) == util.joaat("weapon_unarmed") then
+            add_explosion(hit_coords.x, hit_coords.y, hit_coords.z, 1, 1, true, false, 0.0, false)
+        end
+    end
+end)
+
+------------------
+--EXPLOSIVE GUN--
+------------------
+online_main:toggle_loop(T"Explosive Gun", {}, T"Only works for players around u.", function()
+	local hit_coords = v3.new()
+    for i, pid in players.list(true, true, true) do
+        local ped = get_player_ped_script_index(pid)
+	    if get_ped_last_weapon_impact_coord(ped, hit_coords) then
+            add_explosion(hit_coords.x, hit_coords.y, hit_coords.z, 1, 1, true, false, 0.0, false)
+        end
+    end
 end)
 
 util.create_tick_handler(function()

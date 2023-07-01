@@ -65,10 +65,12 @@ end
 local root = menu.my_root()
 local vehicle_main = root:list(T"Vehicle")
 local movement_list = vehicle_main:list(T"Movement")
+local npcs_list = vehicle_main:list(T"NPCs")
 local trail_effects_list = vehicle_main:list(T"Trail Effects")
 local rpm_flames_list = vehicle_main:list(T"Rpm Flames")
 local indicator_lights_list = vehicle_main:list(T"Indicator Lights")
-local door_control = vehicle_main:list(T("Door Control"))
+local door_control_list = vehicle_main:list(T"Door Control")
+local window_control_list = vehicle_main:list(T"Window Control")
 local horn_explosion_list = vehicle_main:list(T"Horn Explosion")
 
 -----------------------------------------------
@@ -285,6 +287,213 @@ end, function()
     vehicle_rotation = nil
 end)
 
+
+local drive_around_map_set = {ped = nil, was_driver = false, speed = 100, driving_style = 786603}
+local drive_to_waypoint_set = {ped = nil, was_driver = false, speed = 100, driving_style = 786603}
+local drive_to_closest_player_set = {ped = nil, was_driver = false, speed = 100, driving_style = 786603}
+
+---------
+--SPEED--
+---------
+npcs_list:slider(T"Speed", {}, "", 10, 150, 100, 10, function(count)
+    drive_around_map_set.speed = count
+    drive_to_waypoint_set.speed = count
+    drive_to_closest_player_set.speed = count
+end)
+
+-----------------
+--DRIVING STYLE--
+-----------------
+local driving_styles_names = {T"Avoid Traffic Extremely", T"Sometimes Overtake Traffic", T"Rushed", T"Normal", T"Ignore Lights", T"Avoid Traffic", T"Lazy", T"Precise"}
+local driving_styles = {6, 5, 1074528293, 786603, 2883621, 786468, 1076, 8388614}
+npcs_list:list_select(T"Driving Style", {}, "", driving_styles_names, 4, function(index)
+    drive_around_map_set.driving_style = driving_styles[index]
+    drive_to_waypoint_set.driving_style = driving_styles[index]
+    drive_to_closest_player_set.driving_style = driving_styles[index]
+end)
+
+npcs_list:divider("")
+
+------------------------
+--DRIVE AROUND THE MAP--
+------------------------
+local drive_around_map;drive_around_map = npcs_list:toggle(T"Drive Around The Map", {}, "", function(on)
+    if on then
+        if is_ped_in_any_vehicle(players.user_ped(), false) then
+            local vehicle = entities.get_user_vehicle_as_handle(false)
+            local closest_seat = func.get_closet_free_seat_near_driver(vehicle)
+            if closest_seat then
+                local vehicle_coords = get_entity_coords(vehicle)
+                local ped = create_random_ped(vehicle_coords.x, vehicle_coords.y, vehicle_coords.z)
+                drive_around_map_set.ped = ped
+                entities.set_can_migrate(ped, false)
+                set_entity_load_collision_flag(ped, true, true)
+                set_entity_as_mission_entity(ped, true, true)
+                set_blocking_of_non_temporary_events(ped, true)
+                set_ped_into_vehicle(players.user_ped(), vehicle, 0)
+                util.yield(50)
+                set_ped_into_vehicle(ped, vehicle, -1)
+                util.yield(100)
+                task_vehicle_drive_wander(ped, vehicle, drive_around_map_set.speed, drive_around_map_set.driving_style)
+                drive_around_map_set.was_driver = true
+
+                while drive_around_map.value do
+                    if not is_ped_in_any_vehicle(players.user_ped(), false) then
+                        drive_around_map.value = false
+                    end
+                    util.yield()
+                end
+            end
+        else
+            util.toast(T"Your not in any vehicle.")
+            drive_around_map.value = false
+        end
+    else
+        if drive_around_map_set.was_driver then
+            if drive_around_map_set.ped != nil then
+                entities.delete_by_handle(drive_around_map_set.ped)
+                drive_around_map_set.ped = nil
+            end
+            if is_ped_in_any_vehicle(players.user_ped(), false) then
+                local vehicle = entities.get_user_vehicle_as_handle(false)
+                if get_ped_in_vehicle_seat(vehicle, -1, true) != players.user_ped() then
+                    set_ped_into_vehicle(players.user_ped(), vehicle, -1)
+                end
+            end
+            drive_around_map_set.was_driver = false
+        end
+    end
+end)
+
+---------------------
+--DRIVE TO WAYPOINT--
+---------------------
+local drive_to_waypoint;drive_to_waypoint = npcs_list:toggle(T"Drive To Waypoint", {}, "", function(on)
+    if on then
+        if is_ped_in_any_vehicle(players.user_ped(), false) then
+            if get_first_blip_info_id(8) != 0 then
+                local vehicle = entities.get_user_vehicle_as_handle(false)
+                local closest_seat = func.get_closet_free_seat_near_driver(vehicle)
+                if closest_seat then
+                    local vehicle_coords = get_entity_coords(vehicle)
+                    local ped = create_random_ped(vehicle_coords.x, vehicle_coords.y, vehicle_coords.z)
+                    drive_to_waypoint_set.ped = ped
+                    entities.set_can_migrate(ped, false)
+                    set_entity_load_collision_flag(ped, true, true)
+                    set_entity_as_mission_entity(ped, true, true)
+                    set_blocking_of_non_temporary_events(ped, true)
+                    set_ped_into_vehicle(players.user_ped(), vehicle, 0)
+                    util.yield(50)
+                    set_ped_into_vehicle(ped, vehicle, -1)
+                    util.yield(100)
+                    local x, y, z, bool = players.get_waypoint(players.user())
+                    task_vehicle_drive_to_coord(ped, vehicle, x, y, z, drive_to_waypoint_set.speed, 1, get_entity_model(vehicle), drive_to_waypoint_set.driving_style, 5, 0)
+                    drive_to_waypoint_set.was_driver = true
+
+                    while drive_to_waypoint.value do
+                        if is_ped_in_any_vehicle(players.user_ped(), false) then
+                            if get_first_blip_info_id(8) == 0 then
+                                drive_to_waypoint.value = false
+                            end
+                        else
+                            drive_to_waypoint.value = false
+                        end
+                        util.yield()
+                    end
+                end
+            else
+                util.toast(T"No waypoint set.")
+                drive_to_waypoint.value = false
+            end
+        else
+            util.toast(T"Your not in any vehicle.")
+            drive_to_waypoint.value = false
+        end
+    else
+        if drive_to_waypoint_set.was_driver then
+            if drive_to_waypoint_set.ped != nil then
+                entities.delete_by_handle(drive_to_waypoint_set.ped)
+                drive_to_waypoint_set.ped = nil
+            end
+            if is_ped_in_any_vehicle(players.user_ped(), false) then
+                local vehicle = entities.get_user_vehicle_as_handle(false)
+                if get_ped_in_vehicle_seat(vehicle, -1, true) != players.user_ped() then
+                    set_ped_into_vehicle(players.user_ped(), vehicle, -1)
+                end
+            end
+            drive_to_waypoint_set.was_driver = false
+        end
+    end
+end)
+
+---------------------------
+--DRIVE TO CLOSEST PLAYER--
+---------------------------
+local drive_to_closest_player;drive_to_closest_player = npcs_list:toggle(T"Drive To Closest Player", {}, "", function(on)
+    if on then
+        if util.is_session_started() then
+            if is_ped_in_any_vehicle(players.user_ped(), false) then
+                local vehicle = entities.get_user_vehicle_as_handle(false)
+                local closest_seat = func.get_closet_free_seat_near_driver(vehicle)
+                if closest_seat then
+                    local vehicle_coords = get_entity_coords(vehicle)
+                    local ped = create_random_ped(vehicle_coords.x, vehicle_coords.y, vehicle_coords.z)
+                    drive_to_closest_player_set.ped = ped
+                    entities.set_can_migrate(ped, false)
+                    set_entity_load_collision_flag(ped, true, true)
+                    set_entity_as_mission_entity(ped, true, true)
+                    set_blocking_of_non_temporary_events(ped, true)
+                    set_ped_into_vehicle(players.user_ped(), vehicle, 0)
+                    util.yield(50)
+                    set_ped_into_vehicle(ped, vehicle, -1)
+                    util.yield(100)
+
+                    local closest_player = func.get_closest_player(players.get_position(players.user()))
+                    if closest_player != nil and not players.is_in_interior(closest_player) then
+                        util.toast(T"Driving to:" .. " " .. players.get_name(closest_player))
+                        local player_coords = players.get_position(closest_player)
+                        task_vehicle_drive_to_coord(ped, vehicle, player_coords.x, player_coords.y, player_coords.z, drive_to_closest_player_set.speed, 1, get_entity_model(vehicle), drive_to_closest_player_set.driving_style, 5, 0)
+                        drive_to_closest_player_set.was_driver = true
+
+                        while drive_to_closest_player.value do
+                            if is_ped_in_any_vehicle(players.user_ped(), false) and func.get_distance_between(players.user_ped(), players.get_position(closest_player)) then
+                                local player_coords = players.get_position(closest_player)
+                                task_vehicle_drive_to_coord(ped, vehicle, player_coords.x, player_coords.y, player_coords.z, drive_to_closest_player_set.speed, 1, get_entity_model(vehicle), drive_to_closest_player_set.driving_style, 5, 0)
+                                util.yield(5000)
+                            else
+                                drive_to_closest_player.value = false
+                            end
+                            util.yield()
+                        end
+                    else
+                        drive_to_closest_player.value = false
+                    end
+                end
+            else
+                util.toast(T"Your not in any vehicle.")
+                drive_to_closest_player.value = false
+            end
+        else
+            util.toast(T"Only available in online.")
+            drive_to_closest_player.value = false
+        end
+    else
+        if drive_to_closest_player_set.was_driver then
+            if drive_to_closest_player_set.ped != nil then
+                entities.delete_by_handle(drive_to_closest_player_set.ped)
+                drive_to_closest_player_set.ped = nil
+            end
+            if is_ped_in_any_vehicle(players.user_ped(), false) then
+                local vehicle = entities.get_user_vehicle_as_handle(false)
+                if get_ped_in_vehicle_seat(vehicle, -1, true) != players.user_ped() then
+                    set_ped_into_vehicle(players.user_ped(), vehicle, -1)
+                end
+            end
+            drive_to_closest_player_set.was_driver = false
+        end
+    end
+end)
+
 local ptfx_trails_list = trail_effects_list:list(T"PTFX Trails")
 
 local PTFX_trails = {
@@ -467,7 +676,7 @@ end)
 --------------------------------
 --INDESTRUCTIBLE VEHICLE DOORS--
 --------------------------------
-local indestructible_vehicle_doors;indestructible_vehicle_doors = door_control:toggle_loop(T"Indestructible Vehicle Doors", {}, "", function()
+local indestructible_vehicle_doors;indestructible_vehicle_doors = door_control_list:toggle_loop(T"Indestructible Vehicle Doors", {}, "", function()
     if is_ped_in_any_vehicle(players.user_ped(), false) then
         local vehicle = entities.get_user_vehicle_as_handle(false)
         for i = -1, get_number_of_vehicle_doors(vehicle) do
@@ -484,7 +693,7 @@ end)
 --------------------------
 --OPEN ALL VEHICLE DOORS--
 --------------------------
-door_control:action(T"Open All Vehicle Doors", {}, "", function()
+door_control_list:action(T"Open All Vehicle Doors", {}, "", function()
     if is_ped_in_any_vehicle(players.user_ped(), false) then
         local vehicle = entities.get_user_vehicle_as_handle(false)
         for i = -1, get_number_of_vehicle_doors(vehicle) do
@@ -498,7 +707,7 @@ end)
 ---------------------------
 --CLOSE ALL VEHICLE DOORS--
 ---------------------------
-door_control:action(T"Close All Vehicle Doors", {}, "", function()
+door_control_list:action(T"Close All Vehicle Doors", {}, "", function()
     if is_ped_in_any_vehicle(players.user_ped(), false) then
         local vehicle = entities.get_user_vehicle_as_handle(false)
         for i = -1, get_number_of_vehicle_doors(vehicle) do
@@ -512,7 +721,7 @@ end)
 ---------------------------
 --BREAK ALL VEHICLE DOORS--
 ---------------------------
-door_control:action(T"Break All Vehicle Doors", {}, "", function()
+door_control_list:action(T"Break All Vehicle Doors", {}, "", function()
     if is_ped_in_any_vehicle(players.user_ped(), false) then
         local vehicle = entities.get_user_vehicle_as_handle(false)
         for i = -1, get_number_of_vehicle_doors(vehicle) do
@@ -520,6 +729,116 @@ door_control:action(T"Break All Vehicle Doors", {}, "", function()
         end
     else
         util.toast(T"Your not in any vehicle.")
+    end
+end)
+
+------------------
+--REMOVE WINDOWS--
+------------------
+window_control_list:action(T"Remove Windows", {}, "", function()
+    if is_ped_in_any_vehicle(players.user_ped(), false) then
+        local vehicle = entities.get_user_vehicle_as_handle(false)
+        for i = 0, 7 do
+            remove_vehicle_window(vehicle, i)
+        end
+    else
+        util.toast(T"Your not in any vehicle.")
+    end
+end)
+
+---------------------
+--ROLL UP WINDOWS--
+---------------------
+window_control_list:action(T"Roll Up Windows", {}, "", function()
+    if is_ped_in_any_vehicle(players.user_ped(), false) then
+        local vehicle = entities.get_user_vehicle_as_handle(false)
+        for i = 0, 7 do
+            roll_up_window(vehicle, i)
+        end
+    else
+        util.toast(T"Your not in any vehicle.")
+    end
+end)
+
+---------------------
+--ROLL DOWN WINDOWS--
+---------------------
+window_control_list:action(T"Roll Down Windows", {}, "", function()
+    if is_ped_in_any_vehicle(players.user_ped(), false) then
+        local vehicle = entities.get_user_vehicle_as_handle(false)
+        for i = 0, 7 do
+            roll_down_window(vehicle, i)
+        end
+    else
+        util.toast(T"Your not in any vehicle.")
+    end
+end)
+
+-----------------
+--SMASH WINDOWS--
+-----------------
+window_control_list:action(T"Smash Windows", {}, "", function()
+    if is_ped_in_any_vehicle(players.user_ped(), false) then
+        local vehicle = entities.get_user_vehicle_as_handle(false)
+        for i = 0, 7 do
+            smash_vehicle_window(vehicle, i)
+        end
+    else
+        util.toast(T"Your not in any vehicle.")
+    end
+end)
+
+---------------
+--FIX WINDOWS--
+---------------
+window_control_list:action(T"Fix Windows", {}, "", function()
+    if is_ped_in_any_vehicle(players.user_ped(), false) then
+        local vehicle = entities.get_user_vehicle_as_handle(false)
+        for i = 0, 7 do
+            fix_vehicle_window(vehicle, i)
+        end
+    else
+        util.toast(T"Your not in any vehicle.")
+    end
+end)
+
+----------------------
+--POP OUT WINDSCREEN--
+----------------------
+window_control_list:action(T"Pop Out Windscreen", {}, "", function()
+    if is_ped_in_any_vehicle(players.user_ped(), false) then
+        local vehicle = entities.get_user_vehicle_as_handle(false)
+        pop_out_vehicle_windscreen(vehicle)
+    else
+        util.toast(T"Your not in any vehicle.")
+    end
+end)
+
+-------------------
+--SET WINDOW TINT--
+-------------------
+window_control_list:slider(T"Set Window Tint", {"Nsetwintint"}, "", 0, 6, 0, 1, function(count)
+    if is_ped_in_any_vehicle(players.user_ped(), false) then
+        local vehicle = entities.get_user_vehicle_as_handle(false)
+        set_vehicle_window_tint(vehicle, count)
+    else
+        util.toast(T"Your not in any vehicle.")
+    end
+end)
+
+
+local process;process = window_control_list:toggle(T"Non Processed Windows", {}, T"You see the windows but nothing will break them.", function(on)
+    if on then
+        if is_ped_in_any_vehicle(players.user_ped(), false) then
+            local vehicle = entities.get_user_vehicle_as_handle(false)
+            set_dont_process_vehicle_glass(vehicle, true)
+        else
+            util.toast(T"Your not in any vehicle.")
+            process.value = false
+        end
+    else
+        local vehicle = entities.get_user_vehicle_as_handle(false)
+        set_dont_process_vehicle_glass(vehicle, false)
     end
 end)
 
@@ -545,6 +864,8 @@ horn_explosion_list:toggle_loop(T"Horn Explosion", {}, "", function()
         end
     end
 end)
+
+vehicle_main:divider("")
 
 ---------------
 --AUTO REPAIR--
@@ -684,6 +1005,18 @@ vehicle_main:action(T"Spawn Big Ramp Vehicle", {}, "", function()
         local right_vehicle = entities.create_vehicle(hash, position, get_entity_heading(vehicle))
         attach_entity_to_entity(right_vehicle, vehicle, 0, 2*i, 0.0, 0.0, 0.0, 0.0, 0.0, true, false, false, false, 0, true)
         set_entity_collision(right_vehicle, true, true)
+    end
+end)
+
+----------------------
+--HEADLIGHT STRENGTH--
+-----------------------
+vehicle_main:slider(T"Headlight Strength", {"Nheadlightstrength"}, "", 0, 100, 1, 1, function(count)
+    if is_ped_in_any_vehicle(players.user_ped(), false) then
+        local vehicle = entities.get_user_vehicle_as_handle(false)
+        set_vehicle_light_multiplier(vehicle, count)
+    else
+        util.toast(T"Your not in any vehicle.")
     end
 end)
 

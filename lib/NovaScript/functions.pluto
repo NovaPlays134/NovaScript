@@ -1,4 +1,5 @@
 require("NovaScript.NovaScript_natives")
+local tables = require("NovaScript.tables")
 local T = require("NovaScript.NovaS_translations")
 
 local func = {}
@@ -235,6 +236,25 @@ function func.get_passengers(vehicle)
     return pedtable
 end
 
+function func.get_free_seats(vehicle)
+    local free_seats = {}
+    for seatindex = -1, (get_vehicle_model_number_of_seats(get_entity_model(vehicle)) - 2) do
+        if is_vehicle_seat_free(vehicle, seatindex, false) then
+            table.insert(free_seats, seatindex)
+        end
+    end
+    return free_seats
+end
+
+function func.get_closet_free_seat_near_driver(vehicle)
+    for seatindex = -1, (get_vehicle_model_number_of_seats(get_entity_model(vehicle)) - 2) do
+        if is_vehicle_seat_free(vehicle, seatindex, false) then
+            return seatindex
+        end
+    end
+    return false
+end
+
 function func.get_entity_player_is_aiming_at(pid, bool)
 	if not is_player_free_aiming(pid) then
 		return false
@@ -268,13 +288,19 @@ function func.get_offset_from_gameplay_camera(distance)
 end
 
 --gets the closest vehicle to yourself--
-function func.get_closest_vehicle(position)
+function func.get_closest_vehicle(position, current_vehicle)
 	local closest_dist = 999999999999
 	local closest_vehicle = nil
+    local user_vehicle = 0
+    if current_vehicle == nil then
+        current_vehicle = entities.get_user_vehicle_as_pointer(false)
+    else
+        user_vehicle = entities.get_user_vehicle_as_pointer(false)
+    end
     for entities.get_all_vehicles_as_pointers() as vehicle do
 	    local vehicle_pos = entities.get_position(vehicle)
         local dist = func.get_distance_between(position, vehicle_pos)
-	    if (dist < closest_dist) then
+	    if (dist < closest_dist) and vehicle != current_vehicle and vehicle != user_vehicle and get_vehicle_engine_health(entities.pointer_to_handle(vehicle)) >= 0 then
 		    closest_dist = dist
 		    closest_vehicle = vehicle
 	    end
@@ -386,6 +412,374 @@ function func.shoot_ped(ped)
         local weapon = get_selected_ped_weapon(players.user_ped())
         shoot_single_bullet_between_coords(ped_head_coords.x, ped_head_coords.y, ped_head_coords.z - 0.5, ped_head_coords.x, ped_head_coords.y, ped_head_coords.z + 0.5, 100, true, weapon, players.user_ped(), false, false, 100)
     end
+end
+
+function func.kick_out_of_vehicle(vehicle)
+    local free_seat = 0
+    local ped_hash = util.joaat("a_m_y_acult_02")
+
+    util.request_model(ped_hash)
+    local vehicle_coords = get_entity_coords(vehicle, true)
+    local ped = entities.create_ped(1, ped_hash, vehicle_coords, 0)
+
+    entities.set_can_migrate(ped, false)
+    set_entity_load_collision_flag(ped, true, true)
+    set_entity_as_mission_entity(ped, true, true)
+    set_entity_invincible(ped, true)
+
+    set_ped_combat_attributes(ped, 3, true)
+    set_ped_combat_attributes(ped, 1, true)
+
+    set_blocking_of_non_temporary_events(ped, true)
+    set_ped_can_be_knocked_off_vehicle(ped, 1)
+    task_warp_ped_into_vehicle(ped, vehicle, free_seat)
+    
+    util.yield(500)
+    local did_ped_shuffle = false
+    for i = 1, 5 do
+        if get_ped_in_vehicle_seat(vehicle, -1, false) != ped then
+            task_shuffle_to_next_vehicle_seat(ped, vehicle, true)
+        else
+            did_ped_shuffle = true
+        end
+
+        if did_ped_shuffle then
+            continue
+        end
+
+        if i == 5 then
+            entities.delete_by_handle(ped)
+        end
+        util.yield(2000)
+    end
+
+    if does_entity_exist(ped) then
+        return ped
+    end
+end
+
+function func.gas_truck(pid)
+    local ped = get_player_ped_script_index(pid)
+    if is_ped_in_any_vehicle(ped, false) then
+        func.control_vehicle(pid, true, function(vehicle)
+            clear_ped_tasks_immediately(ped)
+            set_vehicle_forward_speed(vehicle, 400)
+            entities.delete_by_handle(vehicle)
+            util.yield(100)
+        end)
+    end
+    local player_offset = get_offset_from_entity_in_world_coords(ped, 0.0, 1.8, 0.0)
+
+    local truck_hash = util.joaat("boxville3")
+    util.request_model(truck_hash)
+    local truck = entities.create_vehicle(truck_hash, player_offset, get_entity_heading(ped))
+    freeze_entity_position(truck, true)
+     
+
+    while not is_entity_dead(ped, true) and func.get_distance_between(ped, truck) < 10 do
+        local player_position = players.get_position(pid)
+        start_networked_particle_fx_non_looped_on_entity("exp_grd_grenade_smoke", ped, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10, false, false, false)
+        add_explosion(player_position.x, player_position.y, player_position.z, 20, 100, true, false, 0, true)
+        add_explosion(player_position.x, player_position.y, player_position.z, 20, 100, true, false, 0, false)
+        util.yield(10000)
+    end
+
+    entities.delete_by_handle(truck)
+    if is_entity_dead(ped, true) then
+        util.toast(T"Player died from the gas truck.")
+    else
+        util.toast(T"Player escaped the gas truck.")
+    end
+end
+
+function func.create_slasher(player_ped, coords)
+    local ped_hash = util.joaat("a_m_y_salton_01")
+    util.request_model(ped_hash)
+    local ped = entities.create_ped(1, ped_hash, coords, 0)
+
+    give_weapon_to_ped(ped, util.joaat("gadget_parachute"), 0, false, false)
+	set_ped_default_component_variation(ped)
+	set_ped_component_variation(ped, 0, 0, 1, 0)
+	set_ped_component_variation(ped, 2, 1, 0, 0)
+	set_ped_component_variation(ped, 3, 0, 0, 0)
+	set_ped_component_variation(ped, 4, 0, 0, 0)
+	set_ped_highly_perceptive(ped, true)
+	set_ped_combat_attributes(ped, 46, true)
+	set_entity_only_damaged_by_player(ped, true)
+	set_entity_health(ped, 600, 0)
+	set_ragdoll_blocking_flags(ped, 8209)
+	set_ped_as_enemy(ped, true)
+	set_entity_only_damaged_by_player(ped, true)
+	set_ped_seeing_range(ped, 200)
+	set_ped_hearing_range(ped, 200)
+	set_entity_max_health(ped, 600)
+	set_ped_config_flag(ped, 281, true)
+	set_ped_config_flag(ped, 434, true)
+	set_ped_dies_when_injured(ped, false)
+	set_ped_flee_attributes(ped, 512, true)
+	set_ped_combat_attributes(ped, 43, true)
+	set_ped_target_loss_response(ped, 1)
+	set_ped_helmet(ped, false)
+	set_ped_suffers_critical_hits(ped, true)
+	give_weapon_to_ped(ped, util.joaat("weapon_machete"), 20, true, true)
+	task_go_to_entity(ped, player_ped, 20000, 0.5, 2, 2, 0)
+	stop_ped_speaking(ped, true)
+
+    return ped
+end
+
+local created_vehicles_check = {}
+local function vehicle_preview(vehicle, is_focused, exists, created)
+    if is_focused then
+        if not exists and created == nil then
+            for i, vehicle in created_vehicles_check do
+                entities.delete_by_handle(vehicle)
+            end
+            created_vehicles_check = {}
+            local hash = util.joaat(vehicle)
+            util.request_model(hash)
+            local created = entities.create_vehicle(hash, {x = 0, y = 0, z = 0}, 0)
+            table.insert(created_vehicles_check, created)
+            freeze_entity_position(created, true)
+            return true, created
+        end
+    else
+        for i, vehicle in created_vehicles_check do
+            entities.delete_by_handle(vehicle)
+        end
+        if exists and created != nil then
+            entities.delete_by_handle(created)
+            return false, nil
+        end
+    end
+end
+
+local created_peds_check = {}
+local function ped_preview(ped, is_focused, exists, created)
+    if is_focused then
+        if not exists and created == nil then
+            for i, ped in created_peds_check do
+                entities.delete_by_handle(ped)
+            end
+            created_peds_check = {}
+            local hash = util.joaat(ped)
+            util.request_model(hash)
+            local created = entities.create_ped(1, hash, {x = 0, y = 0, z = 0}, 0)
+            table.insert(created_peds_check, created)
+            set_entity_load_collision_flag(created, true, true)
+            set_entity_as_mission_entity(created, true, true)
+            set_blocking_of_non_temporary_events(created, true)
+            freeze_entity_position(created, true)
+            return true, created
+        end
+    else
+        for i, ped in created_peds_check do
+            entities.delete_by_handle(ped)
+        end
+        if exists and created != nil then
+            entities.delete_by_handle(created)
+            return false, nil
+        end
+    end
+end
+
+local is_focused_on_veh, does_vehicle_preview_exist, created_vehicle = false, false, nil
+function func.make_all_vehicles_list(root, callback)
+    local general_list = root:list("Vehicles: Adder")
+    local all_vehicles = util.get_vehicles()
+
+    local vehicles = util.get_vehicles()
+    table.sort(all_vehicles, function(a, b)
+        if a.class != b.class then
+            return lang.get_string(a.class) < lang.get_string(b.class)
+        end
+        return a.name < b.name
+    end)
+    
+    local current_class
+    local current_class_list
+    for all_vehicles as vehicle do
+        if current_class != vehicle.class then
+            current_class = vehicle.class
+            current_class_list = general_list:list(vehicle.class)
+        end
+
+        local vehicle_name = util.get_label_text(vehicle.name)
+        if vehicle_name == "NULL" then
+            continue
+        end
+
+        local action = current_class_list:action(util.get_label_text(vehicle.name), {}, "", function()
+            menu.set_menu_name(general_list, "Vehicle" .. ": " .. util.get_label_text(vehicle.name))
+            general_list:focus()
+	        callback(vehicle.name)
+        end)
+
+        menu.on_focus(action, function()
+            is_focused_on_veh = true
+            does_vehicle_preview_exist, created_vehicle = vehicle_preview(vehicle.name, is_focused_on_veh, does_vehicle_preview_exist, created_vehicle)
+        end)
+    
+        menu.on_blur(action, function()
+            is_focused_on_veh = false
+            does_vehicle_preview_exist, created_vehicle = vehicle_preview(vehicle.name, is_focused_on_veh, does_vehicle_preview_exist, created_vehicle)
+        end)
+    end
+end
+
+function func.vehicle_spawn_list(root, callback)
+    local general_list = root:list("Spawn Vehicle")
+    local all_vehicles = util.get_vehicles()
+
+    local vehicles = util.get_vehicles()
+    table.sort(all_vehicles, function(a, b)
+        if a.class != b.class then
+            return lang.get_string(a.class) < lang.get_string(b.class)
+        end
+        return a.name < b.name
+    end)
+    
+    local current_class
+    local current_class_list
+    for all_vehicles as vehicle do
+        if current_class != vehicle.class then
+            current_class = vehicle.class
+            current_class_list = general_list:list(vehicle.class)
+        end
+
+        local vehicle_name = util.get_label_text(vehicle.name)
+        if vehicle_name == "NULL" then
+            continue
+        end
+
+        local action = current_class_list:action(util.get_label_text(vehicle.name), {}, "", function()
+            general_list:focus()
+	        callback(vehicle.name)
+        end)
+
+        menu.on_focus(action, function()
+            is_focused_on_veh = true
+            does_vehicle_preview_exist, created_vehicle = vehicle_preview(vehicle.name, is_focused_on_veh, does_vehicle_preview_exist, created_vehicle)
+        end)
+    
+        menu.on_blur(action, function()
+            is_focused_on_veh = false
+            does_vehicle_preview_exist, created_vehicle = vehicle_preview(vehicle.name, is_focused_on_veh, does_vehicle_preview_exist, created_vehicle)
+        end)
+    end
+end
+
+local ped_classes = {
+    animals = "Animals",
+    pets = "Pets",
+    special = "Special",
+    ambient_female_npcs = "Ambient Female NPCs",
+    ambient_male_npcs = "Ambient Male NPCs",
+    cutscene = "Cutscene",
+    gang_members = "Gang Members",
+    multiplayer = "Multiplayer",
+    mp_scenario_females = "Mp Scenario Females",
+    mp_scenario_males = "Mp Scenario Males",
+    story_mode = "Story Mode",
+    story_scenario_females = "Story Scenario Females",
+    story_scenario_males = "Story Scenario Males",
+    dlc = "DLC",
+}
+
+
+local is_focused_on_ped, does_ped_preview_exist, created_ped = false, false, nil
+function func.make_all_peds_list(root, callback)
+    local general_list = root:list("NPC: Beach Bikini")
+    local classes = {}
+    local class_lists = {}
+    for class, i in tables.all_peds_list do
+        table.insert(classes, class)
+    end
+    table.sort(classes)
+    for i, class in classes do
+        class_lists[class] = general_list:list(ped_classes[class])
+    end
+
+    for class, i in tables.all_peds_list do
+        for k, ped in tables.all_peds_list[class] do
+            local action = class_lists[class]:action(ped.name, {}, ped.model, function()
+                menu.set_menu_name(general_list, "Ped" .. ": " .. ped.name)
+                general_list:focus()
+                callback(ped.model)
+            end)
+
+            menu.on_focus(action, function()
+                is_focused_on_ped = true
+                does_ped_preview_exist, created_ped = ped_preview(ped.model, is_focused_on_ped, does_ped_preview_exist, created_ped)
+            end)
+
+            menu.on_blur(action, function()
+                is_focused_on_ped = false
+                does_ped_preview_exist, created_ped = ped_preview(ped.model, is_focused_on_ped, does_ped_preview_exist, created_ped)
+            end)
+        end
+    end
+end
+
+local preview_vehicle_rotation, preview_ped_rotation = 0, 0
+util.create_tick_handler(function()
+    if is_focused_on_veh then
+        local offset = func.get_offset_from_gameplay_camera(6)
+        set_entity_coords_no_offset(created_vehicle, offset.x, offset.y, offset.z, true, false, false)
+        set_entity_rotation(created_vehicle, 0, 0, preview_vehicle_rotation, 0, true)
+        set_entity_completely_disable_collision(created_vehicle, false, true)
+        freeze_entity_position(created_vehicle, true)
+        set_entity_alpha(created_vehicle, 200, true)
+        preview_vehicle_rotation = preview_vehicle_rotation + 1
+    end
+
+    if is_focused_on_ped then
+        local offset = func.get_offset_from_gameplay_camera(6)
+        set_entity_coords_no_offset(created_ped, offset.x, offset.y, offset.z, true, false, false)
+        set_entity_rotation(created_ped, 0, 0, preview_ped_rotation, 0, true)
+        set_entity_completely_disable_collision(created_ped, false, true)
+        freeze_entity_position(created_ped, true)
+        preview_ped_rotation = preview_ped_rotation + 1
+    end
+end)
+
+function func.get_closest_player(position)
+    local closest_dist = 999999999999
+    local closest_player = nil
+    local user_vehicle = entities.get_user_vehicle_as_handle(false)
+    if user_vehicle == 0 then user_vehicle = 1 end
+    for players.list(false, true, true) as pid do
+		local ped = get_player_ped_script_index(pid)
+		if not is_entity_dead(ped) then
+            local player_pos = players.get_position(pid)
+            local dist = func.get_distance_between(position, player_pos)
+            local player_vehicle = func.get_vehicle_from_ped(ped)
+            if (dist < closest_dist) and (player_vehicle != user_vehicle) and not players.is_in_interior(pid) then
+                closest_dist = dist
+                closest_player = pid
+            end
+		end
+    end
+    if closest_player != nil and closest_player != players.user() then
+        return closest_player
+    end
+end
+
+function func.rainbow_colour(colour)
+	if colour.r > 0 and colour.b == 0 then
+		colour.r = colour.r - 1
+		colour.g = colour.g + 1
+	end
+
+	if colour.g > 0 and colour.r == 0 then
+		colour.g = colour.g - 1
+		colour.b = colour.b + 1
+	end
+
+	if colour.b > 0 and colour.g == 0 then
+		colour.r = colour.r + 1
+		colour.b = colour.b - 1
+	end
 end
 
 return func

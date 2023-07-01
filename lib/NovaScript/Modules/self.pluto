@@ -1,8 +1,3 @@
-pluto_export function init()
-    local scaleform = require("ScaleformLib")
-    sf = scaleform("instructional_buttons")
-end
-
 require("NovaScript.NovaScript_natives")
 local tables = require("NovaScript.tables")
 local T = require("NovaScript.NovaS_translations")
@@ -15,7 +10,7 @@ local function hulk_buttons()
     sf.SET_DATA_SLOT(3, get_control_instructional_buttons_string(0, 22, true), T"Jump")
     sf.SET_DATA_SLOT(2, get_control_instructional_buttons_string(0, 24, true), T"Smash")
     sf.SET_DATA_SLOT(1, get_control_instructional_buttons_string(0, 38, true), T"Throw Vehicle")
-    sf.SET_DATA_SLOT(0, get_control_instructional_buttons_string(0, 323, true), T"Throw Ped")
+    sf.SET_DATA_SLOT(0, get_control_instructional_buttons_string(0, 45, true), T"Throw Ped")
     sf.DRAW_INSTRUCTIONAL_BUTTONS()
     sf:draw_fullscreen()
 end
@@ -46,29 +41,6 @@ local function get_closest_ped(position)
     end
 end
 
---gets the closest player--
-local function get_closest_player(position)
-    local closest_dist = 999999999999
-    local closest_player = nil
-    local user_vehicle = entities.get_user_vehicle_as_handle(false)
-    if user_vehicle == 0 then user_vehicle = 1 end
-    for players.list(false, true, true) as pid do
-		local ped = get_player_ped_script_index(pid)
-		if not is_entity_dead(ped) then
-            local player_pos = players.get_position(pid)
-            local dist = func.get_distance_between(position, player_pos)
-            local player_vehicle = func.get_vehicle_from_ped(ped)
-            if (dist < closest_dist) and (player_vehicle != user_vehicle) and not players.is_in_interior(pid) then
-                closest_dist = dist
-                closest_player = pid
-            end
-		end
-    end
-    if closest_player != nil and closest_player != players.user() then
-        return closest_player
-    end
-end
-
 local function get_water_height_incl_rivers(pos_x, pos_y) --function from aaronlink127#0127
     local outHeight = memory.alloc(4)
     if test_vertical_probe_against_all_water(pos_x, pos_y, 200.0, 0, outHeight) != 0 then
@@ -87,6 +59,7 @@ local hulk_mode_list = self_main:list(T"Hulk Mode")
 local aura_list = self_main:list(T"Aura's")
 local ptfx_trails_self_list = self_main:list(T"PTFX Trails")
 local auto_heal_list = self_main:list(T"Auto Heal")
+local instant_respawn = self_main:list(T"Instant Respawn")
 
 -----------------------------------------------
 --------------------OPTIONS--------------------
@@ -458,7 +431,11 @@ local hulk_mode_toggle;hulk_mode_toggle = hulk_mode_list:toggle(T"Hulk Mode", {}
             hulk_values.godmode_value = menu.ref_by_command_name("godmode").value
             if not hulk_values.godmode_value then
                 menu.ref_by_command_name("godmode").value = true
-            end           
+            end
+            disable_control_action(0, 22)
+            disable_control_action(0, 24)
+            disable_control_action(0, 38)
+            disable_control_action(0, 45)
             while hulk_mode_toggle.value do
                 --buttons--
                 if hulk_values.show_hulk_controls then
@@ -467,14 +444,14 @@ local hulk_mode_toggle;hulk_mode_toggle = hulk_mode_list:toggle(T"Hulk Mode", {}
                 set_ped_can_ragdoll(players.user_ped(), false)
                 local height_above_ground = get_entity_height_above_ground(players.user_ped())
                 --jump--
-                if is_control_pressed(0, 22) and not is_entity_in_air(players.user_ped()) and height_above_ground <= 5 then
+                if is_disabled_control_pressed(0, 22) and not is_entity_in_air(players.user_ped()) and height_above_ground <= 5 then
                     local fwd_vect = get_entity_forward_vector(players.user_ped())
                     fwd_vect:mul(hulk_values.jump_distance)
                     apply_force_to_entity(players.user_ped(), 3, fwd_vect.x, fwd_vect.y, hulk_values.jump_height, 0.0, 0.0, 0.0, 0.0, false, false, true, false, false)
                     hulk_values.jump_bool = true
                 end
                 --smash--
-                if is_control_pressed(0, 24) and height_above_ground >= 10 then
+                if is_disabled_control_pressed(0, 24) and height_above_ground >= 10 then
                     apply_force_to_entity(players.user_ped(), 3, 0.0, 0.0, -hulk_values.downward_force, 0.0, 0.0, 0.0, 0.0, false, false, true, false, false)
                     hulk_values.smash_bool = true
                 end
@@ -529,11 +506,11 @@ local hulk_mode_toggle;hulk_mode_toggle = hulk_mode_list:toggle(T"Hulk Mode", {}
                 	add_explosion(hit_coords.x, hit_coords.y, hit_coords.z, 1, 1, true, true, 0.0, false)
                 end
                 --vehicle throw--
-                if is_control_just_released(0, 38) and not is_ped_in_any_vehicle(players.user_ped(), true) and hulk_values.hands_up_ped == false then
+                if is_disabled_control_just_released(0, 38) and not is_ped_in_any_vehicle(players.user_ped(), true) and hulk_values.hands_up_ped == false then
                     if hulk_values.hands_up_vehicle == false then
                         if hulk_values.attached_vehicle == nil then
                             if is_ped_on_foot(players.user_ped()) and not is_ped_ragdoll(players.user_ped()) then
-                                local closest_vehicle = func.get_closest_vehicle(players.get_position(players.user()))
+                                local closest_vehicle = func.get_closest_vehicle(players.get_position(players.user()), nil)
                                 if closest_vehicle != nil then
                                     local dist = func.get_distance_between(closest_vehicle, players.user_ped())
                                     if dist <= 5 then 
@@ -563,12 +540,13 @@ local hulk_mode_toggle;hulk_mode_toggle = hulk_mode_list:toggle(T"Hulk Mode", {}
                         hulk_values.hands_up_vehicle = false
                     end
                 end           
-                if is_control_just_released(0, 323) and not is_ped_in_any_vehicle(players.user_ped(), true) and hulk_values.hands_up_vehicle == false then
+                if is_disabled_control_just_released(0, 45) and not is_ped_in_any_vehicle(players.user_ped(), true) and hulk_values.hands_up_vehicle == false then
                     if hulk_values.hands_up_ped == false then
                         if hulk_values.attached_ped == nil then
                             if is_ped_on_foot(players.user_ped()) and not is_ped_ragdoll(players.user_ped()) then
                                 local closest_ped = get_closest_ped(players.get_position(players.user()))
                                 if closest_ped != nil then
+                                    clear_ped_tasks_immediately(players.user_ped())
                                     local dist = func.get_distance_between(closest_ped, players.user_ped())
                                     if dist <= 5 then 
                                         func.load_anim_dict("missminuteman_1ig_2")
@@ -611,6 +589,10 @@ local hulk_mode_toggle;hulk_mode_toggle = hulk_mode_list:toggle(T"Hulk Mode", {}
         if not hulk_values.godmode_value then
             menu.ref_by_command_name("godmode").value = false
         end
+        enable_control_action(0, 22)
+        enable_control_action(0, 24)
+        enable_control_action(0, 38)
+        enable_control_action(0, 45)
     end
 end)
 
@@ -907,6 +889,121 @@ auto_heal_list:slider(T"Delay Number", {"Ndelaynum"}, "", 0, 25, 15, 1, function
     auto_heal.delay_number = count
 end)
 
+-----------
+--HEADING--
+-----------
+instant_respawn:toggle_loop(T"Heading", {}, "", function()
+	if is_entity_dead(players.user_ped()) then
+		local position = players.get_position(players.user())
+		local forward_vect = get_entity_forward_vector(players.user_ped())
+        local spawn_coords = v3.new()
+		find_spawn_point_in_direction(position.x, position.y, position.z, forward_vect.x, forward_vect.y, forward_vect.z, math.random(200.0, 400.0), spawn_coords)
+		if spawn_coords != nil then
+			network_resurrect_local_player(spawn_coords.x, spawn_coords.y, spawn_coords.z, get_entity_heading(players.user_ped()), false, false, 0, 0, 0)
+		end
+	end
+end)
+
+--------------------
+--CURRENT LOCATION--
+--------------------
+instant_respawn:toggle_loop(T"Current Location", {}, "", function()
+	if is_entity_dead(players.user_ped()) then
+		local position = players.get_position(players.user())
+		network_resurrect_local_player(position.x, position.y, position.z, get_entity_heading(players.user_ped()), false, false, 0, 0, 0)
+	end
+end)
+
+-------------
+--HOSPITAL)--
+-------------
+instant_respawn:toggle_loop(T"Hospital", {}, "", function()
+	if is_entity_dead(players.user_ped()) then
+        local position = players.get_position(players.user())
+        local closest_dist = 999999999999
+	    local respawn_coords = nil
+        for i, location in tables.hospital_locations  do
+	        local dist = func.get_distance_between(position, location)
+	        if (dist < closest_dist) then
+	            closest_dist = dist
+	            respawn_coords = location
+	        end
+        end
+		network_resurrect_local_player(respawn_coords.x, respawn_coords.y, respawn_coords.z, get_entity_heading(players.user_ped()), false, false, 0, 0, 0)
+	end
+end)
+
+--------------------
+--PERSONAL VEHICLE--
+--------------------
+instant_respawn:toggle_loop(T"Personal Vehicle", {}, "", function()
+	if is_entity_dead(players.user_ped()) then
+        local personal_vehicle = entities.get_user_personal_vehicle_as_handle()
+        if personal_vehicle != -1 and does_entity_exist(personal_vehicle) then
+            local dimensions = func.get_model_dimensions_from_hash(get_entity_model(personal_vehicle))
+            local respawn_coords = get_offset_from_entity_in_world_coords(personal_vehicle, -dimensions.x, 0.0, 0.0)
+		    network_resurrect_local_player(respawn_coords.x, respawn_coords.y, respawn_coords.z, get_entity_heading(players.user_ped()), false, false, 0, 0, 0)
+        else
+            util.toast(T"Did not find any vehicle, respawning at current coords.")
+            local respawn_coords = players.get_position(players.user())
+		    network_resurrect_local_player(respawn_coords.x, respawn_coords.y, respawn_coords.z, get_entity_heading(players.user_ped()), false, false, 0, 0, 0)
+        end
+	end
+end)
+
+----------------
+--LAST VEHICLE--
+----------------
+instant_respawn:toggle_loop(T"Last Vehicle", {}, "", function()
+	if is_entity_dead(players.user_ped()) then
+        local last_vehicle = entities.get_user_vehicle_as_handle()
+        if last_vehicle != -1 and does_entity_exist(last_vehicle) then
+            local dimensions = func.get_model_dimensions_from_hash(get_entity_model(last_vehicle))
+            local respawn_coords = get_offset_from_entity_in_world_coords(last_vehicle, -dimensions.x, 0.0, 0.0)
+		    network_resurrect_local_player(respawn_coords.x, respawn_coords.y, respawn_coords.z, get_entity_heading(players.user_ped()), false, false, 0, 0, 0)
+        else
+            util.toast(T"Did not find any vehicle, respawning at current coords.")
+            local respawn_coords = players.get_position(players.user())
+		    network_resurrect_local_player(respawn_coords.x, respawn_coords.y, respawn_coords.z, get_entity_heading(players.user_ped()), false, false, 0, 0, 0)
+        end
+	end
+end)
+
+-------------------
+--CLOSEST VEHICLE--
+-------------------
+instant_respawn:toggle_loop(T"Closest Vehicle", {}, "", function()
+	if is_entity_dead(players.user_ped()) then
+        local position = players.get_position(players.user())
+        local closest_vehicle = func.get_closest_vehicle(position, nil)
+        if closest_vehicle != nil and does_entity_exist(closest_vehicle) then
+            local dimensions = func.get_model_dimensions_from_hash(get_entity_model(closest_vehicle))
+            local respawn_coords = get_offset_from_entity_in_world_coords(closest_vehicle, -dimensions.x, 0.0, 0.0)
+		    network_resurrect_local_player(respawn_coords.x, respawn_coords.y, respawn_coords.z, get_entity_heading(players.user_ped()), false, false, 0, 0, 0)
+        else
+            util.toast(T"Did not find any vehicle, respawning at current coords.")
+            local respawn_coords = players.get_position(players.user())
+		    network_resurrect_local_player(respawn_coords.x, respawn_coords.y, respawn_coords.z, get_entity_heading(players.user_ped()), false, false, 0, 0, 0)
+        end
+	end
+end)
+
+------------------
+--CLOSEST PLAYER--
+------------------
+instant_respawn:toggle_loop(T"Closest Player", {}, "", function()
+	if is_entity_dead(players.user_ped()) then
+        local position = players.get_position(players.user())
+        local closest_player = func.get_closest_player(position)
+        if closest_player != nil then
+            local respawn_coords = players.get_position(closest_player)
+		    network_resurrect_local_player(respawn_coords.x, respawn_coords.y, respawn_coords.z, get_entity_heading(players.user_ped()), false, false, 0, 0, 0)
+        end
+	end
+end)
+
+self_main:divider("")
+
 -------------------------
 --WALK & DRIVE ON WATER--
 -------------------------
@@ -985,7 +1082,7 @@ end)
 self_main:action(T"Enter Nearest Vehicle", {}, "", function()
 	if not is_ped_in_any_vehicle(players.user_ped(), false) then
 		local player_pos = players.get_position(players.user())
-		local vehicle = func.get_closest_vehicle(player_pos)
+		local vehicle = func.get_closest_vehicle(player_pos, nil)
 		local ped = get_ped_in_vehicle_seat(vehicle, -1, true)
 		if is_ped_a_player(ped) then
 			util.toast(T"A player is in the nearest vehicle.")
@@ -1019,7 +1116,7 @@ end)
 self_main:action(T"Go To Nearest Player", {}, "", function()
     if util.is_session_started() then
 	    local user_pos = players.get_position(players.user())
-	    local player = get_closest_player(user_pos)
+	    local player = func.get_closest_player(user_pos)
         if player != nil then
             if not is_ped_in_any_vehicle(players.user_ped(), false) then
                 local player_pos = players.get_position(player)

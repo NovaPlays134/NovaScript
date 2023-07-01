@@ -364,38 +364,12 @@ boosters_list:action(T"Remove A Booster", {}, "", function(count)
     table.remove(boosters_table.attached_fire_works, 1)
 end)
 
-----------
---CUSTOM--
-----------
-local custom_vehicle = ""
-vehicle_gun_list:action(T"Custom", {"Ncustomveh"}, "", function()
-    menu.show_command_box("Ncustomveh ")
-end, function(given_model)
-    local model = util.joaat(given_model)
-    if is_model_valid(model) and is_model_a_vehicle(model) then
-        custom_vehicle = given_model
-    else
-        util.toast(T"Vehicle not found.")
-    end
-end)
-
-----------------
---VEHICLE TYPE--
-----------------
-local veh_hash = "italigtb2"
-local veh_hashes = {"italigtb2", "terbyte", "speedo2", "trash2", "vigilante", "lazer", "insurgent2", "cutter", "phantom2", "custom"}
-local veh_options = {"italigtb2", "terbyte", "speedo2", "trash2", "vigilante", "lazer", "insurgent2", "cutter", "phantom2", T"Custom"}
-vehicle_gun_list:list_action(T"Vehicle", {}, "", veh_options, function(index)
-    if index != 10 then
-        veh_hash = veh_hashes[index]
-    else
-        local model = util.joaat(custom_vehicle)
-        if is_model_valid(model) and is_model_a_vehicle(model) then
-            veh_hash = custom_vehicle
-        else
-            util.toast(T"Vehicle not found.")
-        end
-    end
+-----------
+--VEHICLE--
+-----------
+local veh_hash = "adder"
+func.make_all_vehicles_list(vehicle_gun_list, function(vehicle)
+    veh_hash = vehicle
 end)
 
 ---------------
@@ -612,6 +586,8 @@ custom_c4_list:textslider(T"Execute c4", {}, "", custom_c4_explosions, function(
         end
     end
 end)
+
+weapon_main:divider("")
 
 ----------------------
 --ORBITAL STRIKE GUN--
