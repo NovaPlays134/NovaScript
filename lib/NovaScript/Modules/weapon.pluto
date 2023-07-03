@@ -79,7 +79,7 @@ local function aimbot_esp(entity, colour)
     end
     local user_pos = players.get_position(players.user())
     local target_pos = get_entity_coords(entity)
-    draw_line(user_pos.x, user_pos.y, user_pos.z, target_pos.x, target_pos.y, target_pos.z, 255, 255, 0, 255)
+    draw_line(user_pos.x, user_pos.y, user_pos.z, target_pos.x, target_pos.y, target_pos.z, colour.r, colour.g, colour.b, colour.a)
 end
 
 local function on_shooting(entity, exl1, exl2, exl3, bone, oneshot)

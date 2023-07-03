@@ -292,7 +292,6 @@ util.create_tick_handler(function()
                 end
                 
                 while is_ped_in_any_vehicle(players.user_ped(), false) do
-                util.toast("started")
                     util.yield(100)
                     local position = players.get_position(players.user())
                     task_vehicle_drive_to_coord(get_ped_in_vehicle_seat(first_vehicle, -1, false), first_vehicle, position.x, position.y, position.y, 150, 1, get_entity_model(first_vehicle), bodyguards_set.driving_style, 15, 0)
