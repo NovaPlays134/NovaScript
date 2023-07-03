@@ -27,13 +27,11 @@ local function get_raycast_from_entity(entity, flag)
     return shape_test_result
 end
 
-local function create_cam()
-    local cam_fov = get_gameplay_cam_fov()
-    local cam = create_cam_with_params("DEFAULT_SCRIPTED_CAMERA", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, cam_fov, false, false)
+local function create_cam(left_right, back_left, height, fov)
+    local cam = create_cam_with_params("DEFAULT_SCRIPTED_CAMERA", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, fov, false, false)
     set_cam_active(cam, true)
     render_script_cams(true, true, 0, true, true, 0)
-    attach_cam_to_entity(cam, players.user_ped(), 0.0, 0.2, 0.6, false)
-    set_entity_visible(players.user_ped(), false, false)
+    attach_cam_to_entity(cam, players.user_ped(), left_right, back_left, height, false)
     return cam
 end
 
@@ -62,6 +60,48 @@ local function get_closest_ped_aimbot(position)
     end
 end
 
+local function aimbot_esp(entity, colour)
+    local distance = func.get_distance_between(players.user_ped(), entity)
+    if distance < 200 then
+        if is_ped_in_any_vehicle(entity) then
+            local vehicle = func.get_vehicle_from_ped(entity)
+            if is_vehicle_seat_free(vehicle, -1, false) then
+                func.draw_box_esp(entity, colour, true)
+            else
+                local driver = get_ped_in_vehicle_seat(vehicle, -1, false)
+                if driver != players.user_ped() then
+                    func.draw_box_esp(driver, colour, true)
+                end
+            end
+        else
+            func.draw_box_esp(entity, colour, false)
+        end
+    end
+    local user_pos = players.get_position(players.user())
+    local target_pos = get_entity_coords(entity)
+    draw_line(user_pos.x, user_pos.y, user_pos.z, target_pos.x, target_pos.y, target_pos.z, 255, 255, 0, 255)
+end
+
+local function on_shooting(entity, exl1, exl2, exl3, bone, oneshot)
+    if is_ped_shooting(players.user_ped()) then
+        if not exl1 then
+            if is_ped_a_player(entity) then
+                func.shoot_ped(entity, bone, oneshot)
+            end
+        end
+        if not exl2 then
+            if is_ped_in_any_vehicle(entity) then
+                func.shoot_ped(entity, bone, oneshot)
+            end
+        end
+        if not exl3 then
+            if not is_ped_in_any_vehicle(entity) and not is_ped_a_player(entity) then
+                func.shoot_ped(entity, bone, oneshot)
+            end
+        end
+    end
+end
+
 -----------------------------------------------
 ---------------------LISTS---------------------
 -----------------------------------------------
@@ -79,7 +119,24 @@ local custom_c4_list = weapon_main:list(T"Custom c4")
 -----------------------------------------------
 --------------------OPTIONS--------------------
 -----------------------------------------------
-local aimbot = {cam = nil, nospread_ref = menu.ref_by_command_name("nospread"), nospread_value = false, cam_movement = true, exclude_players = false, exclude_vehicles = false, exclude_npcs = false}
+local aimbot = {
+    cam = nil,
+    nospread_ref = menu.ref_by_command_name("nospread"),
+    nospread_value = false,
+    cam_movement = true,
+    exclude_players = false,
+    exclude_vehicles = false,
+    exclude_npcs = false,
+    cam_x = -0.1,
+    cam_y = 0.1,
+    cam_z = 0.6,
+    fov = 50,
+    esp_colour = {r = 255, g = 0, b = 255, a = 255},
+    bone = 0x796e,
+    oneshot = true
+}
+
+local position_change = false
 aimbot_list:toggle_loop(T"Aimbot", {}, "", function()
     if not aimbot.nospread_ref.value then
         aimbot.nospread_ref.value = true
@@ -88,7 +145,6 @@ aimbot_list:toggle_loop(T"Aimbot", {}, "", function()
     
     if is_player_free_aiming(players.user()) then
         if aimbot.cam_movement then
-            local rot = nil
             local was_vehicle = false
             local entity_vehicle = nil
             local entity = func.get_entity_player_is_aiming_at(players.user(), false)
@@ -105,112 +161,98 @@ aimbot_list:toggle_loop(T"Aimbot", {}, "", function()
                     end
                     was_vehicle = true
                 end
-            
-                if was_vehicle and entity_vehicle != nil and not aimbot.exclude_vehicles then
-                    local vehicle_position = get_entity_coords(entity_vehicle)
-                    local rel = v3.new(vehicle_position)
-                    rel:sub(players.get_position(players.user()))
-                    local rot1 = rel:toRot()
-                    if aimbot.cam == nil then
-                        aimbot.cam = create_cam()
-                    end
-                    if func.get_distance_between(players.user_ped(), entity) >= 10 then
+
+                local user_pos = players.get_position(players.user())
+                local target_pos = get_entity_coords(entity)
+                draw_line(user_pos.x, user_pos.y, user_pos.z, target_pos.x, target_pos.y, target_pos.z, 255, 255, 0, 255)
+
+                if was_vehicle and entity and not aimbot.exclude_vehicles then
+                    while is_player_free_aiming(players.user()) and entity and is_entity_a_ped(entity) and not is_entity_dead(entity, true) do
+                        aimbot_esp(entity, aimbot.esp_colour)
+                        local position = get_world_position_of_entity_bone(entity, get_ped_bone_index(entity, aimbot.bone))
+                        local rel = v3.new(position)
+                        rel:sub(get_cam_coord(aimbot.cam))
+                        local rot1 = rel:toRot()
+                        if aimbot.cam == nil then
+                            aimbot.cam = create_cam(aimbot.cam_x, aimbot.cam_y, aimbot.cam_z, aimbot.fov)
+                        end
+                        if position_change then
+                            delete_cam(aimbot.cam)
+                            aimbot.cam = nil
+                            util.yield(100)
+                            aimbot.cam = create_cam(aimbot.cam_x, aimbot.cam_y, aimbot.cam_z, aimbot.fov)
+                            position_change = false
+                        end
                         set_cam_rot(aimbot.cam, rot1.x - 0.65, rot1.y, rot1.z, 2)
-                    else
-                        delete_cam(aimbot.cam)
-                        set_entity_visible(players.user_ped(), true, false)
-                        aimbot.cam = nil
-                    end
-                elseif not was_vehicle and entity != false and not is_ped_a_player(entity) and not aimbot.exclude_npcs then
-                    local entity_head_coords = get_world_position_of_entity_bone(entity, get_ped_bone_index(entity, 0x796e))
-                    local rel1 = v3.new(entity_head_coords)
-                    rel1:sub(players.get_position(players.user()))
-                    local rot1 = rel1:toRot()
-    
-                    local rel2 = v3.new(get_entity_coords(entity, false))
-                    rel2:sub(players.get_position(players.user()))
-                    local rot2 = rel2:toRot()
-    
-                    local diff = rot1.y - rot2.y
-                    if aimbot.cam == nil then
-                        aimbot.cam = create_cam()
-                    end
-                    if func.get_distance_between(players.user_ped(), entity) >= 10 then
-                        set_cam_rot(aimbot.cam, rot2.x, rot2.y + diff, rot2.z + diff, 2)
-                    else
-                        delete_cam(aimbot.cam)
-                        set_entity_visible(players.user_ped(), true, false)
-                        aimbot.cam = nil
-                    end
-                elseif not was_vehicle and entity != false and is_ped_a_player(entity) and not aimbot.exclude_players then
-                    local entity_head_coords = get_world_position_of_entity_bone(entity, get_ped_bone_index(entity, 0x796e))
-                    local rel1 = v3.new(entity_head_coords)
-                    rel1:sub(players.get_position(players.user()))
-                    local rot1 = rel1:toRot()
-    
-                    local rel2 = v3.new(get_entity_coords(entity, false))
-                    rel2:sub(players.get_position(players.user()))
-                    local rot2 = rel2:toRot()
-    
-                    local diff = rot1.y - rot2.y
-                    if aimbot.cam == nil then
-                        aimbot.cam = create_cam()
-                    end
-                    if func.get_distance_between(players.user_ped(), entity) >= 10 then
-                        set_cam_rot(aimbot.cam, rot2.x, rot2.y + diff, rot2.z + diff, 2)
-                    else
-                        delete_cam(aimbot.cam)
-                        set_entity_visible(players.user_ped(), true, false)
-                        aimbot.cam = nil
+                        on_shooting(entity, aimbot.exclude_players, aimbot.exclude_vehicles, aimbot.exclude_npcs, aimbot.bone, aimbot.oneshot)
+                        util.yield()
                     end
                 end
 
-                if is_ped_shooting(players.user_ped()) then
-                    if not aimbot.exclude_players then
-                        if is_ped_a_player(entity) then
-                            func.shoot_ped(entity)
+                if not was_vehicle and entity and not is_ped_a_player(entity) and not aimbot.exclude_npcs then
+                    while is_player_free_aiming(players.user()) and entity and is_entity_a_ped(entity) and not is_entity_dead(entity, true) do
+                        aimbot_esp(entity, aimbot.esp_colour)
+                        local position = get_world_position_of_entity_bone(entity, get_ped_bone_index(entity, aimbot.bone))
+                        local rel = v3.new(position)
+                        rel:sub(get_cam_coord(aimbot.cam))
+                        local rot1 = rel:toRot()
+                        if aimbot.cam == nil then
+                            aimbot.cam = create_cam(aimbot.cam_x, aimbot.cam_y, aimbot.cam_z, aimbot.fov)
                         end
+                        if position_change then
+                            delete_cam(aimbot.cam)
+                            aimbot.cam = nil
+                            util.yield(100)
+                            aimbot.cam = create_cam(aimbot.cam_x, aimbot.cam_y, aimbot.cam_z, aimbot.fov)
+                            position_change = false
+                        end
+                        set_cam_rot(aimbot.cam, rot1.x - 0.65, rot1.y, rot1.z, 2)
+                        on_shooting(entity, aimbot.exclude_players, aimbot.exclude_vehicles, aimbot.exclude_npcs, aimbot.bone, aimbot.oneshot)
+                        util.yield()
                     end
+                end
 
-                    if not aimbot.exclude_vehicles then
-                        if is_ped_in_any_vehicle(entity) then
-                            func.shoot_ped(entity)
+                if not was_vehicle and entity and is_ped_a_player(entity) and not aimbot.exclude_players then
+                    while is_player_free_aiming(players.user()) and entity and is_entity_a_ped(entity) and not is_entity_dead(entity, true) do
+                        aimbot_esp(entity, aimbot.esp_colour)
+                        local position = get_world_position_of_entity_bone(entity, get_ped_bone_index(entity, aimbot.bone))
+                        local rel = v3.new(position)
+                        rel:sub(get_cam_coord(aimbot.cam))
+                        local rot1 = rel:toRot()
+                        if aimbot.cam == nil then
+                            aimbot.cam = create_cam(aimbot.cam_x, aimbot.cam_y, aimbot.cam_z, aimbot.fov)
                         end
-                    end
-    
-                    if not aimbot.exclude_npcs then
-                        if not is_ped_in_any_vehicle(entity) and not is_ped_a_player(entity) then
-                            func.shoot_ped(entity)
+                        if position_change then
+                            delete_cam(aimbot.cam)
+                            aimbot.cam = nil
+                            util.yield(100)
+                            aimbot.cam = create_cam(aimbot.cam_x, aimbot.cam_y, aimbot.cam_z, aimbot.fov)
+                            position_change = false
                         end
+                        set_cam_rot(aimbot.cam, rot1.x - 0.65, rot1.y, rot1.z, 2)
+                        on_shooting(entity, aimbot.exclude_players, aimbot.exclude_vehicles, aimbot.exclude_npcs, aimbot.bone, aimbot.oneshot)
+                        util.yield()
                     end
                 end
             else
-                if aimbot.cam_movement then
-                    if aimbot.cam != nil and func.get_entity_player_is_aiming_at(players.user(), false) == false then
-                        delete_cam(aimbot.cam)
-                        set_entity_visible(players.user_ped(), true, false)
-                        aimbot.cam = nil
-                    end
+                if aimbot.cam != nil and not func.get_entity_player_is_aiming_at(players.user(), false) then
+                    delete_cam(aimbot.cam)
+                    aimbot.cam = nil
                 end
             end
         else
+            if is_player_free_aiming(players.user()) then
+                local entity = func.get_entity_player_is_aiming_at(players.user(), false)
+                if entity then
+                    aimbot_esp(entity, aimbot.esp_colour)
+                end
+            end
+
             local hit_coords = v3.new()
 	        if get_ped_last_weapon_impact_coord(players.user_ped(), hit_coords) then
                 local closest_ped = get_closest_ped_aimbot(hit_coords)
                 if closest_ped != nil then
-                    local position = get_entity_coords(closest_ped, false)
-                    if not aimbot.exclude_vehicles then
-                        if is_ped_in_any_vehicle(closest_ped) then
-                            func.shoot_ped(closest_ped)
-                        end
-                    end
-    
-                    if not aimbot.exclude_npcs then
-                        if not is_ped_in_any_vehicle(closest_ped) then
-                            func.shoot_ped(closest_ped)
-                        end
-                    end
-                    util.yield(100)
+                    on_shooting(closest_ped, aimbot.exclude_players, aimbot.exclude_vehicles, aimbot.exclude_npcs, aimbot.bone, aimbot.oneshot)
                 end
 	        end
         end
@@ -218,18 +260,14 @@ aimbot_list:toggle_loop(T"Aimbot", {}, "", function()
         if aimbot.cam_movement then
             if aimbot.cam != nil then
                 delete_cam(aimbot.cam)
-                set_entity_visible(players.user_ped(), true, false)
                 aimbot.cam = nil
             end
         end
     end
 end, function()
-    if aimbot.cam_movement then
-        if aimbot.cam != nil then
-            delete_cam(aimbot.cam)
-            set_entity_visible(players.user_ped(), true, false)
-            aimbot.cam = nil
-        end
+    if aimbot.cam != nil then
+        delete_cam(aimbot.cam)
+        aimbot.cam = nil
     end
     if aimbot.nospread_value then
         aimbot.nospread_ref.value = false
@@ -243,6 +281,64 @@ end)
 aimbot_list:toggle(T"Camera Movement", {}, "", function(on)
     aimbot.cam_movement = on
 end, true)
+
+------------
+--ONE SHOT--
+------------
+aimbot_list:toggle(T"One Shot", {}, "", function(on)
+    aimbot.oneshot = on
+end, true)
+
+--------------
+--ESP Colour--
+--------------
+func.colour_list(aimbot_list, T"ESP Colour", aimbot.esp_colour, 1)
+
+----------------
+--CAM OFFSET X--
+----------------
+aimbot_list:slider_float(T"Cam Offset X", {"Ncamoffsetx"}, "", -5000, 5000, -1, 10, function(count)
+    aimbot.cam_x = count/10
+    position_change = true
+end)
+
+----------------
+--CAM OFFSET Y--
+----------------
+aimbot_list:slider_float(T"Cam Offset Y", {"Ncamoffsety"}, "", -5000, 5000, 1, 10, function(count)
+    aimbot.cam_y = count/10
+    position_change = true
+end)
+
+----------------
+--CAM OFFSET Z--
+----------------
+aimbot_list:slider_float(T"Cam Offset Z", {"Ncamoffsetz"}, "", -5000, 5000, 6, 10, function(count)
+    aimbot.cam_z = count/10
+    position_change = true
+end)
+
+-----------
+--CAM FOV--
+-----------
+aimbot_list:slider(T"Cam FOV", {"Ncamfov"}, "", 1, 130, 50, 1, function(count)
+    aimbot.fov = count
+    position_change = true
+end)
+
+----------------
+--LOCKING BONE--
+----------------
+aimbot_list:list_select(T"Locking Bone", {}, "", tables.all_bones_names, 73, function(index)
+    aimbot.bone = tables.all_boneids[index]
+end)
+
+-------------
+--SET ALPHA--
+-------------
+aimbot_list:slider(T"Set Alpha", {"Nset_alphabot"}, "", 0, 100, 100, 20, function(count)
+    set_entity_alpha(players.user_ped(), (count/100) * 255, false)
+end)
 
 -------------------
 --EXCLUDE PLAYERS--

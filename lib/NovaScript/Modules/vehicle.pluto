@@ -4,62 +4,6 @@ local T = require("NovaScript.NovaS_translations")
 local func = require("NovaScript.functions")
 
 -----------------------------------------------
--------------------FUNCTIONS-------------------
------------------------------------------------
-local function from_euler(x, y, z)
-    local deg2rad = math.pi / 180
-    x = x * deg2rad * 0.5
-    y = y * deg2rad * 0.5
-    z = z * deg2rad * 0.5
-
-    local cr = math.cos(x)
-    local sr = math.sin(x)
-    local cp = math.cos(y)
-    local sp = math.sin(y)
-    local cy = math.cos(z)
-    local sy = math.sin(z)
-
-    local q = {x = 1, y = 0, z = 0, w = 0}
-
-    q.w = cr * cp * cy + sr * sp * sy;
-    q.x = sr * cp * cy - cr * sp * sy;
-    q.y = cr * sp * cy + sr * cp * sy;
-    q.z = cr * cp * sy - sr * sp * cy;
-
-    return q
-end
-
-local function slerp(q1, q2, t)
-    local cosTheta = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w
-    local startInterp, finishInterp
-
-    if cosTheta < 0.0 then
-        cosTheta = -cosTheta
-        q2.x = -q2.x
-        q2.y = -q2.y
-        q2.z = -q2.z
-        q2.w = -q2.w
-    end
-
-    if (1.0 - cosTheta) > 0.0001 then
-        local theta = math.acos(cosTheta)
-        local sinTheta = math.sin(theta)
-        startInterp = math.sin((1.0 - t) * theta) / sinTheta
-        finishInterp = math.sin(t * theta) / sinTheta
-    else
-        startInterp = 1.0 - t
-        finishInterp = t
-    end
-
-    local x = startInterp * q1.x + finishInterp * q2.x
-    local y = startInterp * q1.y + finishInterp * q2.y
-    local z = startInterp * q1.z + finishInterp * q2.z
-    local w = startInterp * q1.w + finishInterp * q2.w
-
-    return {x = x, y = y, z = z, w = w}
-end
-
------------------------------------------------
 ---------------------LISTS---------------------
 -----------------------------------------------
 local root = menu.my_root()
@@ -274,11 +218,11 @@ local set_vehicle_to_cam_rot;set_vehicle_to_cam_rot = movement_list:toggle_loop(
         local height = get_entity_height_above_ground(vehicle)
         if height >= 2.0 and not is_entity_in_water(vehicle) then
             local cam_rot = get_gameplay_cam_rot(0)
-            local desired_rotation = from_euler(cam_rot.x, cam_rot.y, cam_rot.z)
+            local desired_rotation = func.from_euler(cam_rot.x, cam_rot.y, cam_rot.z)
             if vehicle_rotation == nil then
                 vehicle_rotation = desired_rotation
             else
-                vehicle_rotation = slerp(vehicle_rotation, desired_rotation, rotation_speed/1000)
+                vehicle_rotation = func.slerp(vehicle_rotation, desired_rotation, rotation_speed/1000)
                 set_entity_quaternion(vehicle, vehicle_rotation.x, vehicle_rotation.y, vehicle_rotation.z, vehicle_rotation.w)
             end
         end

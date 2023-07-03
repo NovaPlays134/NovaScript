@@ -1007,6 +1007,7 @@ self_main:divider("")
 -------------------------
 --WALK & DRIVE ON WATER--
 -------------------------
+local object_rotation = nil
 local ground, heights_found, ground_object = false, false, nil
 self_main:toggle_loop(T"Walk & Drive On Water", {}, "", function()
     if not ground then
@@ -1016,7 +1017,7 @@ self_main:toggle_loop(T"Walk & Drive On Water", {}, "", function()
             local offset_coords1 = get_offset_from_entity_in_world_coords(players.user_ped(), 0, 3, 0)
             local offset_coords2 = get_offset_from_entity_in_world_coords(players.user_ped(), 0, -3, 0)
             local z1 = get_water_height_incl_rivers(offset_coords1.x, offset_coords1.y)
-            local  z2 = get_water_height_incl_rivers(offset_coords2.x, offset_coords2.y)
+            local z2 = get_water_height_incl_rivers(offset_coords2.x, offset_coords2.y)
             if z1 != nil and z2 != nil then
                 heights_found = true
                 local entity_underwater = is_ped_in_any_vehicle(players.user_ped(), false) and vehicle or players.user_ped()
@@ -1055,10 +1056,16 @@ self_main:toggle_loop(T"Walk & Drive On Water", {}, "", function()
                 set_entity_coords(entity_underwater, position.x, position.y, z2+1, false, false, false, false)
             end
             local user_rotation = is_ped_in_any_vehicle(players.user_ped(), false) and get_entity_rotation(vehicle) or get_entity_rotation(players.user_ped())
-            --got this from acjokerscript i could also just do "(z1 - z2) / 0.03" but is a bit to aggressive--
-            local pitch = math.asin((z1 - z2) / 0.3) * 5
-            local roll = math.asin((z3 - z4) / 0.3) * 5
-            set_entity_rotation(ground_object, pitch, roll, user_rotation.z, 0, true)
+            local pitch = (z1 - z2) / 0.1
+            local roll = (z3 - z4) / 0.1
+
+            local desired_rotation = func.from_euler(pitch, roll, user_rotation.z)
+            if object_rotation == nil then
+                object_rotation = desired_rotation
+            else
+                object_rotation = func.slerp(object_rotation, desired_rotation, 50/1000)
+                set_entity_quaternion(ground_object, object_rotation.x, object_rotation.y, object_rotation.z, object_rotation.w)
+            end
             set_entity_coords(ground_object, position.x, position.y, z2, false, false, false, false)
         else
             entities.delete_by_handle(ground_object)
@@ -1074,6 +1081,7 @@ end, function()
     end
     heights_found = false
     ground_object = nil
+    object_rotation = nil
 end)
 
 -------------------------

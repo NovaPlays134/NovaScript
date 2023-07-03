@@ -8,19 +8,6 @@ local scripts_dir = filesystem.scripts_dir()
 -----------------------------------------------
 -------------------FUNCTIONS-------------------
 -----------------------------------------------
-local function colour_list(root, name, colour, num)
-    local list = root:list(name)
-    list:slider("R", {num .. name .. " R"}, "", 0, 255, colour.r, 1, function(count)
-	    colour.r = count
-    end)
-    list:slider("G", {num .. name .. " G"}, "", 0, 255, colour.g, 1, function(count)
-	    colour.g = count
-    end)
-    list:slider("B", {num .. name .. " B"}, "", 0, 255, colour.b, 1, function(count)
-	    colour.b = count
-    end)
-end
-
 local screen_coord_x, screen_coord_y = memory.alloc(4), memory.alloc(4)
 local function draw_esp(ped, colour)
     local coords = {}
@@ -41,111 +28,6 @@ local function draw_esp(ped, colour)
         if (x1 > 0 and x1 < 1) and (y1 > 0 and y1 < 1) and (x2 > 0 and x2 < 1) and (y2 > 0 and y2 < 1) then
             directx.draw_line(x1, y1, x2, y2, colour)
         end
-    end
-end
-
-local function draw_box_front(pos1, pos2, neck, offset, colour)
-    draw_line(pos1.x, pos1.y, neck.z + 0.25, pos2.x, pos2.y, neck.z + 0.25, colour.r, colour.g, colour.b, colour.a)
-    draw_line(pos1.x, pos1.y, offset.z, pos2.x, pos2.y, offset.z, colour.r, colour.g, colour.b, colour.a)
-    draw_line(pos1.x, pos1.y, neck.z + 0.25, pos1.x, pos1.y, offset.z, colour.r, colour.g, colour.b, colour.a)
-    draw_line(pos2.x, pos2.y, neck.z + 0.25, pos2.x, pos2.y, offset.z, colour.r, colour.g, colour.b, colour.a)
-end
-
-local function draw_box_back(pos1, pos2, neck, offset, colour)
-    draw_line(pos1.x, pos1.y, neck.z + 0.25, pos2.x, pos2.y, neck.z + 0.25, colour.r, colour.g, colour.b, colour.a)
-    draw_line(pos1.x, pos1.y, offset.z, pos2.x, pos2.y, offset.z, colour.r, colour.g, colour.b, colour.a)
-    draw_line(pos1.x, pos1.y, neck.z + 0.25, pos1.x, pos1.y, offset.z, colour.r, colour.g, colour.b, colour.a)
-    draw_line(pos2.x, pos2.y, neck.z + 0.25, pos2.x, pos2.y, offset.z, colour.r, colour.g, colour.b, colour.a)
-end
-local function draw_box_connecting_lines(pos1, pos2, pos3, pos4, neck, offset, colour)
-    draw_line(pos1.x, pos1.y, neck.z + 0.25, pos3.x, pos3.y, neck.z + 0.25, colour.r, colour.g, colour.b, colour.a)
-    draw_line(pos2.x, pos2.y, neck.z + 0.25, pos4.x, pos4.y, neck.z + 0.25, colour.r, colour.g, colour.b, colour.a)
-    draw_line(pos1.x, pos1.y, offset.z, pos3.x, pos3.y, offset.z, colour.r, colour.g, colour.b, colour.a)
-    draw_line(pos2.x, pos2.y, offset.z, pos4.x, pos4.y, offset.z, colour.r, colour.g, colour.b, colour.a)
-end
-
-
---ShadowCat
-local function draw_box_esp(ped, colour, inveh)
-    local mul_colour = colour
-    if not inveh then
-        local dimensions = func.get_model_dimensions_from_hash(get_entity_model(ped))
-        local neck = get_world_position_of_entity_bone(ped, get_ped_bone_index(ped, 0x796e))
-        local elbow1 = get_world_position_of_entity_bone(ped, get_ped_bone_index(ped, 0xbb0))
-        local elbow2 = get_world_position_of_entity_bone(ped, get_ped_bone_index(ped, 0x58b7))
-        local elbow_based_width = elbow1:distance(elbow2)
-        local offset = get_offset_from_entity_in_world_coords(ped, 0, 0, -dimensions.z/2.2)
-    
-        local pos1 = get_entity_coords(ped)
-        local rot = get_entity_rotation(ped, 2)
-        local dir = rot:toDir()
-        local scale = 0.3
-        local width = elbow_based_width * 0.6
-    
-        dir:mul(scale)
-        pos1:add(dir)
-        neck:add(dir)
-    
-        rot.z = rot.z + 90.0
-        dir = rot:toDir()
-        dir:mul(width)
-    
-        local pos2 = v3.new(pos1)
-        pos1:add(dir)
-        pos2:sub(dir)
-    
-        draw_box_front(pos1, pos2, neck, offset, mul_colour)
-    
-        local back_pos1 = get_entity_coords(ped)
-        local rot2 = get_entity_rotation(ped, 2)
-        local dir2 = rot2:toDir()
-    
-        dir2:mul(-scale)
-        back_pos1:add(dir2)
-    
-        rot2.z = rot2.z + 90.0
-        dir2 = rot2:toDir()
-        dir2:mul(width)
-    
-        local back_pos2 = v3.new(back_pos1)
-        back_pos1:add(dir2)
-        back_pos2:sub(dir2)
-    
-        draw_box_back(back_pos1, back_pos2, neck, offset, mul_colour)
-        draw_box_connecting_lines(pos1, pos2, back_pos1, back_pos2, neck, offset, mul_colour)
-    else
-        local vehicle = func.get_vehicle_from_ped(ped)
-        local dimensions = func.get_model_dimensions_from_hash(get_entity_model(vehicle))
-        local right_line_front_bottom = get_offset_from_entity_in_world_coords(ped, dimensions.x/1.5, dimensions.y/1.7, dimensions.z-(dimensions.z*1.5))
-        local right_line_front_top = get_offset_from_entity_in_world_coords(ped, dimensions.x/1.5, dimensions.y/1.7, dimensions.z/1.5)
-        local left_line_front_bottom = get_offset_from_entity_in_world_coords(ped, -dimensions.x/3.5, dimensions.y/1.7, dimensions.z-(dimensions.z*1.5))
-        local left_line_front_top = get_offset_from_entity_in_world_coords(ped, -dimensions.x/3.5, dimensions.y/1.7, dimensions.z/1.5)
-
-        local right_line_back_bottom = get_offset_from_entity_in_world_coords(ped, dimensions.x/1.5, -dimensions.y/2, dimensions.z-(dimensions.z*1.5))
-        local right_line_back_top = get_offset_from_entity_in_world_coords(ped, dimensions.x/1.5, -dimensions.y/2, dimensions.z/1.5)
-        local left_line_back_bottom = get_offset_from_entity_in_world_coords(ped, -dimensions.x/3.5, -dimensions.y/2, dimensions.z-(dimensions.z*1.5))
-        local left_line_back_top = get_offset_from_entity_in_world_coords(ped, -dimensions.x/3.5, -dimensions.y/2, dimensions.z/1.5)
-
-        local lines = {
-            {right_line_front_bottom, right_line_front_top},
-            {left_line_front_bottom, left_line_front_top},
-            {right_line_front_bottom, left_line_front_bottom},
-            {right_line_front_top, left_line_front_top},
-            {right_line_back_bottom, right_line_back_top},
-            {left_line_back_bottom, left_line_back_top},
-            {right_line_back_bottom, left_line_back_bottom},
-            {right_line_back_top, left_line_back_top},
-            {right_line_back_bottom, right_line_back_bottom},
-            {right_line_front_bottom, right_line_back_bottom},
-            {right_line_front_top, right_line_back_top},
-            {left_line_front_bottom, left_line_back_bottom},
-            {left_line_front_top, left_line_back_top}
-        }
-
-        for _, line in ipairs(lines) do
-            draw_line(line[1].x, line[1].y, line[1].z, line[2].x, line[2].y, line[2].z, mul_colour.r, mul_colour.g, mul_colour.b, mul_colour.a)
-        end
-
     end
 end
 
@@ -644,11 +526,11 @@ box_esp_settings:toggle(T"Apply On Vehicles", {}, "", function(on)
     box_esp.show_esp_on_vehicles = on
 end, true)
 
-colour_list(box_esp_settings, T"Default Colour", box_esp.default_colour, 1)
+func.colour_list(box_esp_settings, T"Default Colour", box_esp.default_colour, 1)
 
-colour_list(box_esp_settings, T"Dead Colour", box_esp.dead_colour, 1)
+func.colour_list(box_esp_settings, T"Dead Colour", box_esp.dead_colour, 1)
 
-colour_list(box_esp_settings, T"Friend Colour", box_esp.friend_colour, 1)
+func.colour_list(box_esp_settings, T"Friend Colour", box_esp.friend_colour, 1)
 
 -----------
 --BOX ESP--
@@ -680,18 +562,18 @@ local box_esp_opt;box_esp_opt = player_esp_list:toggle_loop(T"Box ESP", {}, "", 
                 end
                 local vehicle = func.get_vehicle_from_ped(get_player_ped_script_index(pid))
                 if is_vehicle_seat_free(vehicle, -1, false) then
-                    draw_box_esp(get_player_ped_script_index(pid), colour, true)
+                    func.draw_box_esp(get_player_ped_script_index(pid), colour, true)
                 else
                     local driver = get_ped_in_vehicle_seat(vehicle, -1, false)
                     if driver != players.user_ped() or box_esp.show_esp_for_yourself then
-                        draw_box_esp(driver, colour, true)
+                        func.draw_box_esp(driver, colour, true)
                     end
                 end
             else
                 if pid == players.user() and not box_esp.show_esp_for_yourself then
                     goto continue
                 end
-                draw_box_esp(get_player_ped_script_index(pid), colour, false)
+                func.draw_box_esp(get_player_ped_script_index(pid), colour, false)
             end
             ::continue::
         end
@@ -712,13 +594,13 @@ local line_esp = {
     friend_colour  = {r = 255, g = 255, b = 0, a = 255},
 }
 
-colour_list(line_esp_settings, T"Default Colour", line_esp.default_colour, 2)
+func.colour_list(line_esp_settings, T"Default Colour", line_esp.default_colour, 2)
 
-colour_list(line_esp_settings, T"Out Of Sight Colour", line_esp.not_in_los_colour, 2)
+func.colour_list(line_esp_settings, T"Out Of Sight Colour", line_esp.not_in_los_colour, 2)
 
-colour_list(line_esp_settings, T"Dead Colour", line_esp.dead_colour, 2)
+func.colour_list(line_esp_settings, T"Dead Colour", line_esp.dead_colour, 2)
 
-colour_list(line_esp_settings, T"Friend Colour", line_esp.friend_colour, 2)
+func.colour_list(line_esp_settings, T"Friend Colour", line_esp.friend_colour, 2)
 
 ------------
 --LINE ESP--
