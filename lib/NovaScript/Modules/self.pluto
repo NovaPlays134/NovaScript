@@ -1002,8 +1002,6 @@ instant_respawn:toggle_loop(T"Closest Player", {}, "", function()
 	end
 end)
 
-self_main:divider("")
-
 -------------------------
 --WALK & DRIVE ON WATER--
 -------------------------

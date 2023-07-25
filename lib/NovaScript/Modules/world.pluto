@@ -826,8 +826,6 @@ local firework;firework = firework_list:toggle(T"Firework", {}, "", function(on)
     end
 end)
 
-firework_list:divider("")
-
 --------
 --TYPE--
 --------
@@ -1013,8 +1011,6 @@ end, function()
 	set_train_speed(train, train_max_speed)
 	set_train_cruise_speed(train, train_max_speed)
 end)
-
-world_main:divider("")
 
 -------------------
 --AIM INFORMATION--
