@@ -809,8 +809,6 @@ weapon_list:action(T"Set Nuke Explosion On Player", {}, "", function()
     func.create_nuke_explosion(position)
 end)
 
-trolling_main:divider("")
-
 --------------------
 --PUT IN GAS TRUCK--
 --------------------
@@ -1248,8 +1246,6 @@ end, function()
         end
     end
 end)
-
-vehicle_main:divider("")
 
 -----------------
 --SPAWN VEHICLE--

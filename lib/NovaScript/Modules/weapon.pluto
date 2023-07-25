@@ -683,8 +683,6 @@ custom_c4_list:textslider(T"Execute c4", {}, "", custom_c4_explosions, function(
     end
 end)
 
-weapon_main:divider("")
-
 ----------------------
 --ORBITAL STRIKE GUN--
 ----------------------

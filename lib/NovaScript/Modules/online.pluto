@@ -669,8 +669,6 @@ smoke_bomb_list:slider(T"Smoke Scale", {"Nsmokescale"}, "", 1, 8, 5, 1, function
 	smoke_scale = count
 end)
 
-online_main:divider("")
-
 ------------------
 --EXPLOSIVE HITS--
 ------------------

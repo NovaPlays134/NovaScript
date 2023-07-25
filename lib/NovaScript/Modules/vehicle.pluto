@@ -256,8 +256,6 @@ npcs_list:list_select(T"Driving Style", {}, "", driving_styles_names, 4, functio
     drive_to_closest_player_set.driving_style = driving_styles[index]
 end)
 
-npcs_list:divider("")
-
 ------------------------
 --DRIVE AROUND THE MAP--
 ------------------------
@@ -808,8 +806,6 @@ horn_explosion_list:toggle_loop(T"Horn Explosion", {}, "", function()
         end
     end
 end)
-
-vehicle_main:divider("")
 
 ---------------
 --AUTO REPAIR--

@@ -187,7 +187,6 @@ if is_installed[7] and is_installed[8] and is_installed[9] and is_installed[10] 
         --------------------OPTIONS--------------------
         -----------------------------------------------
         local root = menu.my_root()
-        root:divider("")
         root:hyperlink(T"Join The Discord Server", "https://discord.gg/E4m6pMUwpx")
         
         local credit_text_positions = {}
